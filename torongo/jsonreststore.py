@@ -10,6 +10,7 @@ import random
 import string
 import pymongo
 import pymongo.json_util
+import urllib
 
 def newId():
     '''Use the mongo ID mechanism but convert them to strings'''
@@ -21,6 +22,30 @@ class MainHandler(tornado.web.RequestHandler):
         bytes = file(fname, 'r').read()
         self.write(bytes)
 
+def TranslateQuery(obj):
+    '''Hack to translate the json coded object into a mongo query'''
+    if type(obj) == dict:
+        # translate all elements of a dictionary
+        for key,val in obj.iteritems():
+            obj[key] = TranslateQuery(val)
+        return obj
+    elif type(obj) == list:
+        # translate all elements of a list
+        for i,val in enumerate(obj):
+            obj[i] = TranslateQuery(val)
+        return obj
+    elif type(obj) == unicode:
+        # check a string to see if it might be a regular expression
+        if obj.startswith('/') and obj.endswith('/'):
+            try:
+                obj = re.compile(obj[1:-1])
+            except:
+                print 'bad re', obj
+        return obj
+    else:
+        # pass anything else on
+        return obj
+            
 # handle requests without an id
 class CollectionHandler(tornado.web.RequestHandler):
     def get(self, db_name, collection_name):
@@ -33,17 +58,32 @@ class CollectionHandler(tornado.web.RequestHandler):
         # check for a query
         spec = {}
         for key,val in self.request.arguments.iteritems():
-            q = val[0].replace('*', '.*').replace('?', '.?')
+            q = val[0]
+            if key == 'mongoquery':
+                # remove url quoting
+                q = urllib.unquote(q)
+                # convert from json
+                q = json.loads(q)
+                # convert to format expected by mongo
+                spec = TranslateQuery(q)
+                break
+            print 'q=', q
+            if '*' in q or '?' in q:
+                q = q.replace('*', '.*').replace('?', '.?')
+                q = re.compile('^' + q + '$')
             spec[key] = q
 
+        print 'query spec', spec
         cursor = collection.find(spec)
 
         # check for a sorting request
-        s = re.compile(r'sort\(([+-])(\w+)\)').search(self.request.query)
+        # should handle multiple sorts like sort(-length,+letters)
+        s = re.compile(r'sort\(([^)]+)\)').search(self.request.query)
         if s:
-            column = s.group(2)
-            direction = { '+':pymongo.ASCENDING, '-':pymongo.DESCENDING }[s.group(1)]
-            cursor = cursor.sort(column, direction)
+            sortSpec = [ (key, {'+':pymongo.ASCENDING, '-':pymongo.DESCENDING}[direction])
+                         for direction,key in re.findall(r'([+-])(\w+)', s.group(1)) ]
+            print 'sortSpec', sortSpec
+            cursor = cursor.sort(sortSpec)
 
 
         Nitems = cursor.count()
@@ -132,10 +172,14 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         import string, random
         n = int(sys.argv[1])
-        docs = [ { 'label' : ''.join(random.sample(string.lowercase, 4)),
+        docs = [ { 'label' : ''.join(random.sample(string.lowercase, random.randint(2,9))),
                    'value': i,
                    '_id': newId() }
                  for i in range(n) ]
+        for doc in docs:
+            doc['length'] = len(doc['label'])
+            doc['letters'] = sorted(list(doc['label']))
+            
         connection = pymongo.Connection()
         db = connection.test
         db.drop_collection('posts')

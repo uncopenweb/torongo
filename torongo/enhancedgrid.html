@@ -1,0 +1,105 @@
+<html>
+<head>
+  <title>EnhancedGrid + JsonRestStore</title>
+  <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/dojo/1.4.1/dojo/dojo.xd.js" 
+          djConfig="parseOnLoad: true">
+  </script>
+
+  <link rel="stylesheet" type="text/css" href=
+  "http://ajax.googleapis.com/ajax/libs/dojo/1.4.1/dojo/resources/dojo.css"/>
+  <link rel="stylesheet" type="text/css" href=
+  "http://ajax.googleapis.com/ajax/libs/dojo/1.4.1/dijit/themes/tundra/tundra.css"/>
+  <link rel="stylesheet" type="text/css" href=
+  "http://ajax.googleapis.com/ajax/libs/dojo/1.4.1/dojox/grid/enhanced/resources/tundraEnhancedGrid.css"/>
+
+  <script type="text/javascript">
+    dojo.require("dojox.data.JsonRestStore");
+    // Required for all Enhanced features
+    dojo.require("dojox.grid.EnhancedGrid");
+    // Row/Column drag-drop feature
+    dojo.require("dojox.grid.enhanced.plugins.DnD");
+    // Declarative pop-up menu feature
+    dojo.require("dojox.grid.enhanced.plugins.Menu");
+    // Nested sorting feature
+    dojo.require("dojox.grid.enhanced.plugins.NestedSorting");
+    // Indirect selection(check box/radio button selection) feature
+    dojo.require("dojox.grid.enhanced.plugins.IndirectSelection");
+
+    //dojo.require("dojox.grid.DataGrid");
+    dojo.require("dojo.parser");
+    dojo.require("dijit.form.Button");
+    dojo.require("dijit.form.FilteringSelect");
+  </script>
+
+  <script type="text/javascript">
+    function mongoQuery(obj) {
+      var qs = dojo.toJson(obj);
+      qs = escape(qs);
+      qs = qs.replace('/', '%2F');
+      qs = qs.replace('+', '%2B');
+      return '?mongoquery=' + qs;
+    }
+    function main() {
+      dojo.connect(grid, 'onApplyEdit', null, function(i){ store.save();});
+      function queryOne() {
+        var props = prompt("Enter query in JSON literal form", "{ }");
+        if(props) {
+           props = dojo.fromJson(props);
+           console.debug(props);
+           grid.setQuery(mongoQuery(props));
+        }
+      }
+      queryButton = new dijit.form.Button({label:"Query", onClick: queryOne }, 'query');
+      function addOne() {
+        var item = store.newItem();
+        item.label = 'newone';
+        item.value = 42;
+        item.length = 6;
+        item.letters = ['e','e','n','n','o','w'];
+        store.save();
+      }
+      addButton = new dijit.form.Button({label:"Add", onClick: addOne }, 'add');
+      function deleteSome() {
+        var items = grid.selection.getSelected();
+        if(items.length) {
+          dojo.forEach(items, function(item) {
+            if(item != null) {
+              store.deleteItem(item);
+            }
+          });
+          store.save();
+        }
+      }
+      deleteButton = new dijit.form.Button({label:"Delete", onClick: deleteSome }, 'delete');
+      console.log('main end');
+    }
+    dojo.addOnLoad(main);
+  </script>
+</head>
+<body class="tundra">
+  <div dojoType="dojox.data.JsonRestStore" 
+       target="/data/test/posts/" 
+       idAttribute="_id" 
+       jsId="store"></div>
+  <table dojoType="dojox.grid.EnhancedGrid" store="store" jsId="grid"
+         plugins="{nestedSorting: true}"
+         clientSort="true" rowSelector="20px"
+       style="height:300px;width:100%;border:1px solid black">
+    <thead>
+      <tr>
+        <th width="200px" field="_id">Id</th>
+        <th width="150px" field="label">Label</th>
+        <th width="150px" field="length">Length</th>
+        <th width="100px" field="letters">Letters</th>
+        <th width="150px" field="value">Value</th>
+      </tr>
+    </thead>
+  </table>
+  <input dojoType="dijit.form.FilteringSelect" value="" store="store"
+searchAttr="label" name="label" id="lableInput">
+  <button id="add"></button>
+  <button id="delete" type="button"></button>
+  <button id="query" type="button"></button>
+</body>
+</html>
+
