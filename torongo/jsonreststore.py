@@ -1,15 +1,23 @@
-'''A JsonRestStore server for use with dojo.JsonRestStore'''
+'''A Mongo-based server for use with dojo.JsonRestStore
+
+start this server and then access a url like:
+
+http://localhost:8888/grid.html
+
+'''
 
 import tornado.httpserver
 import tornado.ioloop
 import tornado.web
+import pymongo
+import pymongo.json_util
+import thread_util
+import mongo_util
 import os
 import json
 import re
 import random
 import string
-import pymongo
-import pymongo.json_util
 import urllib
 
 def newId():
@@ -17,7 +25,7 @@ def newId():
     return str(pymongo.objectid.ObjectId())
         
 # return a page to kick things off simply to avoid the cross-domain stuff
-class MainHandler(tornado.web.RequestHandler):
+class MainHandler(mongo_util.MongoRequestHandler):
     def get(self, fname):
         bytes = file(fname, 'r').read()
         self.write(bytes)
@@ -47,19 +55,19 @@ def TranslateQuery(obj):
         return obj
             
 # handle requests without an id
-class CollectionHandler(tornado.web.RequestHandler):
+class CollectionHandler(mongo_util.MongoRequestHandler):
     def get(self, db_name, collection_name):
         '''Handle queries'''
-        
-        connection = pymongo.Connection()
-        db = connection[db_name]
-        collection = db[collection_name]
+        collection = self.mongo_conn[db_name][collection_name]
 
         # check for a query
         spec = {}
         for key,val in self.request.arguments.iteritems():
             q = val[0]
             if key == 'mongoquery':
+                # pass an arbitrary query into mongo, the query is json encoded and
+                # then url quoted
+                
                 # remove url quoting
                 q = urllib.unquote(q)
                 # convert from json
@@ -67,13 +75,11 @@ class CollectionHandler(tornado.web.RequestHandler):
                 # convert to format expected by mongo
                 spec = TranslateQuery(q)
                 break
-            print 'q=', q
             if '*' in q or '?' in q:
                 q = q.replace('*', '.*').replace('?', '.?')
                 q = re.compile('^' + q + '$')
             spec[key] = q
 
-        print 'query spec', spec
         cursor = collection.find(spec)
 
         # check for a sorting request
@@ -82,7 +88,6 @@ class CollectionHandler(tornado.web.RequestHandler):
         if s:
             sortSpec = [ (key, {'+':pymongo.ASCENDING, '-':pymongo.DESCENDING}[direction])
                          for direction,key in re.findall(r'([+-])(\w+)', s.group(1)) ]
-            print 'sortSpec', sortSpec
             cursor = cursor.sort(sortSpec)
 
 
@@ -107,15 +112,14 @@ class CollectionHandler(tornado.web.RequestHandler):
 
     def post(self, db_name, collection_name):
         '''Create a new item and return the single item not an array'''
-        connection = pymongo.Connection()
-        db = connection[db_name]
-        collection = db[collection_name]
+        collection = self.mongo_conn[db_name][collection_name]
 
         item = json.loads(self.request.body, object_hook=pymongo.json_util.object_hook)
 
         id = newId()
         item['_id'] = id
         collection.insert(item)
+        # this path should get encoded only one place, fix this
         self.set_header('Location', '/data/%s/%s/%s' % (db_name, collection_name, id))
         s = json.dumps(item, default=pymongo.json_util.default)
         self.set_header('Content-length', len(s))
@@ -124,12 +128,10 @@ class CollectionHandler(tornado.web.RequestHandler):
 
 
 # handle requests with an id
-class ItemHandler(tornado.web.RequestHandler):
+class ItemHandler(mongo_util.MongoRequestHandler):
     def get(self, db_name, collection_name, id):
         '''Handle requests for single items'''
-        connection = pymongo.Connection()
-        db = connection[db_name]
-        collection = db[collection_name]
+        collection = self.mongo_conn[db_name][collection_name]
         
         item = collection[{'_id':id}]
         s = json.dumps(item, default=pymongo.json_util.default)
@@ -139,32 +141,31 @@ class ItemHandler(tornado.web.RequestHandler):
 
     def put(self, db_name, collection_name, id):
         '''update an item after an edit, no response?'''
-        connection = pymongo.Connection()
-        db = connection[db_name]
-        collection = db[collection_name]
+        collection = self.mongo_conn[db_name][collection_name]
         item = json.loads(self.request.body, object_hook=pymongo.json_util.object_hook)
         collection.save(item)
 
     def delete(self, db_name, collection_name, id):
         '''Delete an item, what should I return?'''
-        connection = pymongo.Connection()
-        db = connection[db_name]
-        collection = db[collection_name]
+        collection = self.mongo_conn[db_name][collection_name]
         collection.remove( { '_id' : id }, True )
-        
-settings = {
-    "static_path": os.path.join(os.path.dirname(__file__), "static"),
-    'debug': True,
-}
-application = tornado.web.Application([
-    (r"/(\w+\.html)", MainHandler),
-    # why do we need this optional undefined string, explorer seems to be adding it
-    # workaround for the bug fixed (we think) by http://trac.dojotoolkit.org/changeset/21041
-    # was
-    #(r"/data/(\d*)", DataHandler),
-    (r"/data/([a-z][a-z0-9]*)/([a-z][a-z0-9]*)/(?:undefined)?$", CollectionHandler),
-    (r"/data/([a-z][a-z0-9]*)/([a-z][a-z0-9]*)/(?:undefined)?([a-f0-9]+)", ItemHandler),
-], **settings)
+
+def run_server():
+    settings = {
+        'debug': True,
+        'thread_count': 5,
+    }
+    application = mongo_util.MongoApplication([
+        (r"/(\w+\.html)", MainHandler),
+        # why do we need this optional undefined string, explorer seems to be adding it
+        # workaround for the bug fixed (we think) by http://trac.dojotoolkit.org/changeset/21041
+        # was
+        (r"/data/([a-z][a-z0-9]*)/([a-z][a-z0-9]*)/(?:undefined)?$", CollectionHandler),
+        (r"/data/([a-z][a-z0-9]*)/([a-z][a-z0-9]*)/(?:undefined)?([a-f0-9]+)", ItemHandler),
+    ], **settings)
+    http_server = tornado.httpserver.HTTPServer(application)
+    http_server.listen(8888)
+    tornado.ioloop.IOLoop.instance().start()
 
 if __name__ == "__main__":
     import sys
@@ -184,7 +185,5 @@ if __name__ == "__main__":
         db = connection.test
         db.drop_collection('posts')
         db.posts.insert(docs)
-    http_server = tornado.httpserver.HTTPServer(application)
-    http_server.listen(8888)
-    tornado.ioloop.IOLoop.instance().start()
+    run_server()
 
