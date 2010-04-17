@@ -140,6 +140,11 @@ class CollectionHandler(BaseHandler):
                     q = re.compile('^' + q + '$')
                 except re.error:
                     raise HTTPError(400, 'bad query')
+
+            # are types the issue?
+            if re.match(r'\d+$', q):
+                q = int(q)
+                
             spec[key] = q
 
         #spec = acc.validateQuery(spec)
