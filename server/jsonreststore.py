@@ -1,11 +1,9 @@
-'''A Mongo-based server for use with dojo.JsonRestStore
-
-start this server and then access a url like:
-
-http://localhost:8888/grid.html
-
 '''
+A Mongo-based server for use with dojox.data.JsonRestStore.
 
+:copyright: Gary Bishop 2010
+:license: BSD
+'''
 import tornado.httpserver
 import tornado.ioloop
 import tornado.web
@@ -22,6 +20,7 @@ import re
 import random
 import string
 import urllib
+import optparse
 
 def newId():
     '''Use the mongo ID mechanism but convert them to strings'''
@@ -67,13 +66,6 @@ class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
             self.redirect("/data/login-ok")
         else:
             self.redirect("/data/login-failed")
-
-# return a page to kick things off simply to avoid the cross-domain stuff
-# we'll replace this with mod_proxy or nginx
-class MainHandler(BaseHandler):
-    def get(self, fname):
-        bytes = file(fname, 'r').read()
-        self.write(bytes)
 
 def TranslateQuery(obj):
     '''Hack to translate the json coded object into a mongo query'''
@@ -199,7 +191,6 @@ class CollectionHandler(BaseHandler):
         self.set_header('Content-type', 'application/json')
         self.write(s)
 
-
 # handle requests with an id
 class ItemHandler(BaseHandler):
     def get(self, db_name, collection_name, id):
@@ -232,43 +223,72 @@ class ItemHandler(BaseHandler):
         #acc.validateDelete(old_item)
         collection.remove( { '_id' : id }, True )
 
-def run_server():
-    settings = {
-        'cookie_secret':"480fae4e819d28eeb1cc9f84dc471bad",
-        'debug': True,
-        'thread_count': 5,
+def run(port=8888, threads=4, debug=False, static=False, pid=None):
+    if pid is not None:
+        # launch as a daemon and write the pid file
+        import daemon
+        daemon.daemonize(pid)
+    kwargs = {
+        'cookie_secret':'480fae4e819d28eeb1cc9f84dc471bad',
+        'debug': debug,
+        'thread_count': threads
     }
+    if static:
+        kwargs['static_path'] = os.path.join(os.path.dirname(__file__), "../")
     application = mongo_util.MongoApplication([
-        (r"/(\w+\.html)", MainHandler),
         # why do we need this optional undefined string, explorer seems to be adding it
         # workaround for the bug fixed (we think) by http://trac.dojotoolkit.org/changeset/21041
         # was
         (r"/data/([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/(?:undefined)?$", CollectionHandler),
         (r"/data/([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/(?:undefined)?([a-f0-9]+)", ItemHandler),
         (r"/data/login(.*)", AuthHandler),
-    ], **settings)
+    ], **kwargs)
     http_server = tornado.httpserver.HTTPServer(application)
-    http_server.listen(8887)
+    http_server.listen(port)
     tornado.ioloop.IOLoop.instance().start()
+    
+def generate_sample_data(n):
+    import string, random
+    docs = [ { 'label' : ''.join(random.sample(string.lowercase, random.randint(2,9))),
+               'value': i,
+               '_id': newId() }
+             for i in range(n) ]
+    for doc in docs:
+        doc['length'] = len(doc['label'])
+        doc['letters'] = sorted(list(doc['label']))
+        
+    connection = pymongo.Connection()
+    db = connection.test
+    db.drop_collection('posts')
+    db.posts.insert(docs)
+    return n, 'test', 'posts'
+
+def run_from_args():
+    '''
+    Runs an instance of the JSonic server with options pulled from the command
+    line.
+    '''
+    parser = optparse.OptionParser()
+    parser.add_option("-p", "--port", dest="port", default=8888,
+        help="server port number (default=8888)", type="int")
+    parser.add_option("-w", "--workers", dest="workers", default=4,
+        help="size of the worker pool (default=4)", type="int")
+    parser.add_option("-g", "--generate", dest="generate", default=0,
+        help="generate N random items in a db collection for testing (default=0)", 
+        type="int")    
+    parser.add_option("--debug", dest="debug", action="store_true", 
+        default=False, help="enable Tornado debug mode w/ automatic loading (default=false)")
+    parser.add_option("--static", dest="static", action="store_true", 
+        default=False, help="enable Tornado sharing of the jsonic root folder (default=false)")
+    parser.add_option("--pid", dest="pid", default=None, type="str",
+        help="launch as a daemon and write to the given pid file (default=None)")
+    (options, args) = parser.parse_args()
+    if options.generate:
+        vals = generate_sample_data(options.generate)
+        print 'Generated %d random items in db: %s, collection: %s' % vals
+        return
+    # run the server
+    run(options.port, options.workers, options.debug, options.static, options.pid)
 
 if __name__ == "__main__":
-    import sys
-    print 'start server'
-    # start with an argument indicating how many items you want in the DB
-    if len(sys.argv) > 1:
-        import string, random
-        n = int(sys.argv[1])
-        docs = [ { 'label' : ''.join(random.sample(string.lowercase, random.randint(2,9))),
-                   'value': i,
-                   '_id': newId() }
-                 for i in range(n) ]
-        for doc in docs:
-            doc['length'] = len(doc['label'])
-            doc['letters'] = sorted(list(doc['label']))
-            
-        connection = pymongo.Connection()
-        db = connection.test
-        db.drop_collection('posts')
-        db.posts.insert(docs)
-    run_server()
-
+    run_from_args()
