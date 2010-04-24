@@ -21,8 +21,8 @@
     }
   </style>
 
+  <script type="text/javascript" src="unc.js"></script>
   <script type="text/javascript">
-    dojo.require("dojox.data.JsonRestStore");
     dojo.require("dojox.grid.DataGrid");
     dojo.require("dojo.parser");
     dojo.require("dijit.form.Button");
@@ -32,7 +32,7 @@
     function main() {
       console.log('main');
 
-      gridStore = new dojox.data.JsonRestStore({target:"/data/test/posts/", idAttribute:"_id" });
+      gridStore = new unc.data.MongoStore({target:"/data/test/posts/", idAttribute:"_id" });
       gridLayout = [
        { name: 'Label', field: 'label', width: "30%", editable: true },
        { name: 'Value', field: 'value', width: "25%", editable: true },
@@ -45,9 +45,6 @@
       grid.startup();
       dojo.connect(grid, 'onApplyEdit', null, function(i){ gridStore.save();});
       function queryOne() {
-        // I should prompt for the query but I don't yet know how
-        // I bet my code in the server does not handle nearly all the possibilities
-        // where is it documented?
         var props = prompt("Enter query in JSON literal form", "{ }");
         if(props) {
            props = dojo.fromJson(props);
