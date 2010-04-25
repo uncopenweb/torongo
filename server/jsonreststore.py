@@ -67,6 +67,9 @@ class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
         else:
             self.redirect("/data/login-failed")
 
+JSRE = re.compile(r'^/(.*)/([igm]*)$')
+DojoGlob = re.compile(r'[?*]')
+
 def TranslateQuery(obj):
     '''Hack to translate the json coded object into a mongo query'''
     # some validation might be done in here as well
@@ -83,11 +86,32 @@ def TranslateQuery(obj):
         return obj
     elif type(obj) == unicode:
         # check a string to see if it might be a regular expression
-        if obj.startswith('/') and obj.endswith('/'):
+        m = JSRE.match(obj)
+        if m:
+            flags = 0
+            for letter in m.group(2):
+                flags |= { 'm': re.M,
+                           'g': re.G,
+                           'i': re.I } [ letter ]
             try:
-                obj = re.compile(obj[1:-1])
+                obj = re.compile(m.group(1), flags)
             except re.error:
                 raise HTTPError(400, 'bad query')
+
+        # check for globbing in the string
+        elif DojoGlob.search(obj):
+            # protect python re special characters
+            q = re.sub(r'([][.+(){}|^\\])', r'\\\1', obj)
+            # convert * to .* and ? to .?
+            q = re.sub(r'([*?])', r'.\1', q)
+            # anchor it
+            q = '^' + q + '$'
+            # try to compile it
+            try:
+                obj = re.compile(q)
+            except re.error:
+                pass # just pass the original string along if it won't compile
+
         return obj
     else:
         # pass anything else on
@@ -97,47 +121,23 @@ def TranslateQuery(obj):
 class CollectionHandler(BaseHandler):
     def get(self, db_name, collection_name):
         '''Handle queries'''
-        print 'get', db_name, collection_name
-        
 #        acc =  access.getAccess(db_name, collection_name, self, 'read')
         
         collection = self.mongo_conn[db_name][collection_name]
 
         # check for a query
         spec = {}
-        for key,val in self.request.arguments.iteritems():
-            # validate the query key
-            if not re.match(r'\w+', key):
-                raise HTTPError(400, 'bad query')
-            q = val[0]
-            if key == 'mongoquery':
-                # pass an arbitrary query into mongo, the query is json encoded and
-                # then url quoted
-                
-                # remove url quoting
-                q = urllib.unquote(q)
-                # convert from json
-                q = json.loads(q)
-                # convert to format expected by mongo
-                spec = TranslateQuery(q)
-                break
+        if 'mq' in self.request.arguments:
+            q = self.request.arguments['mq'][0]
+            # pass an arbitrary query into mongo, the query is json encoded and
+            # then url quoted
 
-            # handle the dojo glob style strings
-            if '*' in q or '?' in q:
-                # protect python re special characters
-                q = re.sub(r'([][.+(){}|^\\])', r'\\\1', q)
-                # convert * to .* and ? to .?
-                q = re.sub(r'([*?])', r'.\1', q)
-                try:
-                    q = re.compile('^' + q + '$')
-                except re.error:
-                    raise HTTPError(400, 'bad query')
-
-            # are types the issue?
-            if re.match(r'\d+$', q):
-                q = int(q)
-                
-            spec[key] = q
+            # remove url quoting
+            q = urllib.unquote(q)
+            # convert from json
+            q = json.loads(q)
+            # convert to format expected by mongo
+            spec = TranslateQuery(q)
 
         #spec = acc.validateQuery(spec)
         cursor = collection.find(spec) #, acc.fields)
