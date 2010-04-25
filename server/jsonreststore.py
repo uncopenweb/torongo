@@ -144,13 +144,12 @@ class CollectionHandler(BaseHandler):
 
         # check for a sorting request
         # should handle multiple sorts like sort(-length,+letters)
-        s = re.compile(r'sort\(([^)]+)\)').search(self.request.query)
-        if s:
+        if 'ms' in self.request.arguments:
             sortSpec = []
-            for direction, key in re.findall(r'([+-])(\w+)', s.group(1)):
+            for s in self.request.arguments['ms'][0].split(','):
                 #if acc.schema and key not in acc.schema:
                 #    raise HTTPError(400, 'key')
-                sortSpec.append((key, {'+':pymongo.ASCENDING, '-':pymongo.DESCENDING}[direction]))
+                sortSpec.append((s[1:], { '+':pymongo.ASCENDING, '-':pymongo.DESCENDING }[s[0]]))
             #sortSpec = acc.validateSort(sortSpec)
             cursor = cursor.sort(sortSpec)
 

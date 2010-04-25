@@ -16,8 +16,19 @@ dojo.declare('uow.data.MongoStore', [dojox.data.JsonRestStore], {
         console.log('doQuery', args);
         // pack the query into one parameter with the query args json and uri encoded
         // undefined won't json decode, make it an empty query
-        if (!args.query || typeof(args.query) == 'undefined') args.query = {};
-        args.query.mq = encodeURIComponent(dojo.toJson(args.query));
+        var qs = {};
+        if (args.query && typeof(args.query) != 'undefined') {
+            qs.mq = encodeURIComponent(dojo.toJson(args.query));
+        }
+        if (args.sort && typeof(args.sort) != 'undefined') {
+            var s = dojo.map(args.sort, function(v) {
+                return (v.descending ? '-' : '+') + encodeURIComponent(v.attribute); }).join(',');
+            qs.ms = s;
+        }
+        qs = dojo.objectToQuery(qs);
+        if (qs.length > 0) {
+            args.queryStr = '?' + qs
+        }
         // hand off to the method in JsonRestStore which ignores the query if queryStr is set
         return this.inherited(arguments);
     }
