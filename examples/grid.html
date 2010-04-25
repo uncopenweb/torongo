@@ -1,8 +1,15 @@
 <html>
 <head>
   <title>Grid + JsonRestStore</title>
-  <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/dojo/1.4.1/dojo/dojo.xd.js" 
-          djConfig="parseOnLoad: true">
+    <script type="text/javascript">
+      var djConfig = {
+        isDebug: false,
+        parseOnLoad: true,
+        baseUrl: './',
+        modulePaths: { 'uow.data':'..' }
+      };
+    </script>
+  <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/dojo/1.4.1/dojo/dojo.xd.js">
   </script>
 
   <link rel="stylesheet" type="text/css" href=
@@ -21,8 +28,8 @@
     }
   </style>
 
-  <script type="text/javascript" src="unc.js"></script>
   <script type="text/javascript">
+    dojo.require("uow.data.MongoStore");
     dojo.require("dojox.grid.DataGrid");
     dojo.require("dojo.parser");
     dojo.require("dijit.form.Button");
@@ -32,7 +39,7 @@
     function main() {
       console.log('main');
 
-      gridStore = new unc.data.MongoStore({target:"/data/test/posts/", idAttribute:"_id" });
+      gridStore = new uow.data.MongoStore({target: "/data/test/posts/", idAttribute:"_id" });
       gridLayout = [
        { name: 'Label', field: 'label', width: "30%", editable: true },
        { name: 'Value', field: 'value', width: "25%", editable: true },

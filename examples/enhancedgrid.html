@@ -1,8 +1,15 @@
 <html>
 <head>
   <title>EnhancedGrid + JsonRestStore</title>
-  <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/dojo/1.4.1/dojo/dojo.xd.js" 
-          djConfig="parseOnLoad: true">
+    <script type="text/javascript">
+      var djConfig = {
+        isDebug: false,
+        parseOnLoad: true,
+        baseUrl: './',
+        modulePaths: { 'uow.data':'..' }
+      };
+    </script>
+  <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/dojo/1.4.1/dojo/dojo.xd.js">
   </script>
 
   <link rel="stylesheet" type="text/css" href=
@@ -13,7 +20,7 @@
   "http://ajax.googleapis.com/ajax/libs/dojo/1.4.1/dojox/grid/enhanced/resources/tundraEnhancedGrid.css"/>
 
   <script type="text/javascript">
-    dojo.require("dojox.data.JsonRestStore");
+    dojo.require("uow.data.MongoStore");
     // Required for all Enhanced features
     dojo.require("dojox.grid.EnhancedGrid");
     // Row/Column drag-drop feature
@@ -32,13 +39,6 @@
   </script>
 
   <script type="text/javascript">
-    function mongoQuery(obj) {
-      var qs = dojo.toJson(obj);
-      qs = escape(qs);
-      qs = qs.replace('/', '%2F');
-      qs = qs.replace('+', '%2B');
-      return '?mongoquery=' + qs;
-    }
     function main() {
       dojo.connect(grid, 'onApplyEdit', null, function(i){ store.save();});
       function queryOne() {
@@ -46,7 +46,7 @@
         if(props) {
            props = dojo.fromJson(props);
            console.debug(props);
-           grid.setQuery(mongoQuery(props));
+           grid.setQuery(props);
         }
       }
       queryButton = new dijit.form.Button({label:"Query", onClick: queryOne }, 'query');
@@ -77,7 +77,7 @@
   </script>
 </head>
 <body class="tundra">
-  <div dojoType="dojox.data.JsonRestStore" 
+  <div dojoType="uow.data.MongoStore" 
        target="/data/test/posts/" 
        idAttribute="_id" 
        jsId="store"></div>

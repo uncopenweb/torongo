@@ -10,21 +10,25 @@
   "http://ajax.googleapis.com/ajax/libs/dojo/1.4.1/dojox/grid/resources/Grid.css"/>
   <link rel="stylesheet" type="text/css" href=
   "http://ajax.googleapis.com/ajax/libs/dojo/1.4.1/dojox/grid/resources/tundraGrid.css"/>
-  <script type="text/javascript"
-          src="http://ajax.googleapis.com/ajax/libs/dojo/1.4.1/dojo/dojo.xd.js"
-          baseUrl='./'
-          djConfig="parseOnLoad:true">
+    <script type="text/javascript">
+      var djConfig = {
+        isDebug: false,
+        parseOnLoad: true,
+        baseUrl: './',
+        modulePaths: { 'uow.data':'..' }
+      };
+    </script>
+  <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/dojo/1.4.1/dojo/dojo.xd.js">
   </script>
-
   <script type="text/javascript">
     dojo.require("dojox.data.StoreExplorer");
-    dojo.require("dojox.data.JsonRestStore");
+    dojo.require("uow.data.MongoStore");
     dojo.require("dojo.parser");
   </script>
 
 </head>
 <body class="tundra">
-<div dojoType="dojox.data.JsonRestStore" 
+<div dojoType="uow.data.MongoStore" 
      target="/data/test/posts/" 
      idAttribute="_id" 
      jsId="store"></div>
