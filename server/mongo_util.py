@@ -18,7 +18,10 @@ class MongoApplication(ThreadPoolApplication):
     '''
     def __init__(self, *args, **kwargs):
         super(MongoApplication, self).__init__(*args, **kwargs)
-        self.mongo_conn = kwargs.get('mongo_conn', pymongo.Connection())
+        try:
+            self.mongo_conn = kwargs['mongo_conn']
+        except KeyError:
+            self.mongo_conn = pymongo.Connection()
 
 class MongoRequestHandler(ThreadedRequestHandler):
     '''
