@@ -41,6 +41,8 @@ class BaseHandler(mongo_util.MongoRequestHandler):
 class UserHandler(BaseHandler):
     def get(self):
         user = self.get_current_user()
+        if not user:
+            user = {}
         self.write(user)
         
 class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
