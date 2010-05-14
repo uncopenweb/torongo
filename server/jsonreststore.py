@@ -38,6 +38,11 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         print 'get_current_user', result
         return result
 
+class UserHandler(BaseHandler):
+    def get(self):
+        user = self.get_current_user()
+        self.write(tornado.escape.json_encode(user))
+        
 class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
     '''Handle authentication using Google OpenID'''
     @tornado.web.asynchronous
@@ -241,6 +246,7 @@ def run(port=8888, threads=4, debug=False, static=False, pid=None):
         (r"/data/([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/(?:undefined)?$", CollectionHandler),
         (r"/data/([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/(?:undefined)?([a-f0-9]+)", ItemHandler),
         (r"/data/login(.*)", AuthHandler),
+        (r"/data/user", UserHandler),
     ], **kwargs)
     http_server = tornado.httpserver.HTTPServer(application)
     http_server.listen(port)
