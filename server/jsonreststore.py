@@ -41,7 +41,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
 class UserHandler(BaseHandler):
     def get(self):
         user = self.get_current_user()
-        self.write(tornado.escape.json_encode(user))
+        self.write(user)
         
 class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
     '''Handle authentication using Google OpenID'''
