@@ -9,7 +9,6 @@ import tornado.ioloop
 import tornado.web
 from tornado.web import HTTPError
 import tornado.auth
-#import access
 import pymongo
 import pymongo.json_util
 import thread_util
@@ -21,6 +20,8 @@ import random
 import string
 import urllib
 import optparse
+import random
+import access
 
 def newId():
     '''Use the mongo ID mechanism but convert them to strings'''
@@ -28,51 +29,56 @@ def newId():
     return str(pymongo.objectid.ObjectId())
 
 class BaseHandler(mongo_util.MongoRequestHandler):
-    '''Manage secure access'''
+    '''Manage user cookie'''
     def get_current_user(self):
         user_json = self.get_secure_cookie("user")
         if not user_json:
-            print 'get current user', None
-            return None
-        result = tornado.escape.json_decode(user_json)
-        print 'get_current_user', result
+            result = { 'email' : 'None' }
+        else:
+            result = tornado.escape.json_decode(user_json)
+        #print 'get_current_user', result
         return result
 
-class UserHandler(BaseHandler):
-    def get(self):
-        user = self.get_current_user()
-        if not user:
-            user = {}
-        self.write(user)
-        
 class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
     '''Handle authentication using Google OpenID'''
     @tornado.web.asynchronous
     def get(self, id):
-        print 'auth get', id
+        #print 'auth get', id
         if not id:
             # start auth from Google
             if self.get_argument("openid.mode", None):
-                print 'calling get_authenticed_user'
+                #print 'calling get_authenticed_user'
                 self.get_authenticated_user(self.async_callback(self._on_auth))
                 return
-            print 'calling authenticate_redirect'
+            #print 'calling authenticate_redirect'
             self.authenticate_redirect()
         else:
-            print 'sending response'
+            #print 'sending response'
             # wrap up the authorization
-            resp = '''<html><head></head><body onload="window.opener.handleOpenIDResponse('%s');window.close();">This page is after login is complete.</body></html>''' % id[1:]
+            resp = '''<html><head></head><body onload="window.opener.uow._handleOpenIDResponse('%s');window.close();">This page is after login is complete.</body></html>''' % id[1:]
             self.write(resp)
             self.finish()
 
     def _on_auth(self, user):
-        print 'on_auth', user
+        #print 'on_auth', user
         if user:
             self.set_secure_cookie("user", tornado.escape.json_encode(user))
-            print 'set the cookie'
+            #print 'set the cookie', user
             self.redirect("/data/login-ok")
         else:
             self.redirect("/data/login-failed")
+
+    def post(self, id):
+        '''Open a db/collection with requested permissions'''
+        args = json.loads(self.request.body, object_hook=pymongo.json_util.object_hook)
+        db = args['database']
+        collection = args['collection']
+        mode = args['mode']
+        user = self.get_current_user()
+        key = access.makeAccessKey(db, collection, mode, user, self.request)
+        url = '/data/%s/%s/' % (db, collection)
+        self.write({ 'url' : url,
+                     'key' : key })
 
 JSRE = re.compile(r'^/(.*)/([igm]*)$')
 DojoGlob = re.compile(r'[?*]')
@@ -128,13 +134,16 @@ def TranslateQuery(obj):
 class CollectionHandler(BaseHandler):
     def get(self, db_name, collection_name):
         '''Handle queries'''
-#        acc =  access.getAccess(db_name, collection_name, self, 'read')
+        acc = access.checkAccessKey(db_name, collection_name, access.Read,
+                                    self.get_current_user(), self.request)
+        if acc is False:
+            raise HTTPError(403)
         
         collection = self.mongo_conn[db_name][collection_name]
 
         # check for a query
         spec = {}
-        if 'mq' in self.request.arguments:
+        if acc and 'mq' in self.request.arguments:
             q = self.request.arguments['mq'][0]
             # pass an arbitrary query into mongo, the query is json encoded and
             # then url quoted
@@ -146,25 +155,21 @@ class CollectionHandler(BaseHandler):
             # convert to format expected by mongo
             spec = TranslateQuery(q)
 
-        #spec = acc.validateQuery(spec)
         cursor = collection.find(spec) #, acc.fields)
 
         # check for a sorting request
         # should handle multiple sorts like sort(-length,+letters)
-        if 'ms' in self.request.arguments:
+        if acc and 'ms' in self.request.arguments:
             sortSpec = []
             for s in self.request.arguments['ms'][0].split(','):
-                #if acc.schema and key not in acc.schema:
-                #    raise HTTPError(400, 'key')
                 sortSpec.append((s[1:], { '+':pymongo.ASCENDING, '-':pymongo.DESCENDING }[s[0]]))
-            #sortSpec = acc.validateSort(sortSpec)
             cursor = cursor.sort(sortSpec)
 
         Nitems = cursor.count()
 
         # see how much we are to send
         r = re.compile(r'items=(\d+)-(\d+)').match(self.request.headers.get('Range', ''))
-        if r:
+        if acc and r:
             start = int(r.group(1))
             stop = int(r.group(2))
         else:
@@ -181,11 +186,13 @@ class CollectionHandler(BaseHandler):
 
     def post(self, db_name, collection_name):
         '''Create a new item and return the single item not an array'''
-        #acc =  access.getAccess(db_name, collection_name, self, 'create')
+        if not access.checkAccessKey(db_name, collection_name, access.Create,
+                                     self.get_current_user(), self.request):
+            raise HTTPError(403)
+        
         collection = self.mongo_conn[db_name][collection_name]
 
         item = json.loads(self.request.body, object_hook=pymongo.json_util.object_hook)
-        #item = acc.validateFields(item)
 
         id = newId()
         item['_id'] = id
@@ -197,15 +204,25 @@ class CollectionHandler(BaseHandler):
         self.set_header('Content-type', 'application/json')
         self.write(s)
 
+    def delete(self, db_name, collection_name):
+        '''Drop the collection'''
+        if not access.checkAccessKey(db_name, collection_name, access.Drop,
+                                     self.get_current_user(), self.request):
+            raise HTTPError(403)
+        self.mongo_conn[db_name].drop_collection(collection_name)
+        self.write('ok')        
+
 # handle requests with an id
 class ItemHandler(BaseHandler):
     def get(self, db_name, collection_name, id):
         '''Handle requests for single items'''
-        #acc =  access.getAccess(db_name, collection_name, self, 'read')
+        if not access.checkAccessKey(db_name, collection_name, access.Read,
+                                     self.get_current_user(), self.request):
+            raise HTTPError(403)
+        
         collection = self.mongo_conn[db_name][collection_name]
         
-        item = collection.find_one({'_id':id})#, acc.fields)
-        #item = acc.validateRead(item)
+        item = collection.find_one({'_id':id})
         
         s = json.dumps(item, default=pymongo.json_util.default)
         self.set_header('Content-length', len(s))
@@ -214,20 +231,27 @@ class ItemHandler(BaseHandler):
 
     def put(self, db_name, collection_name, id):
         '''update an item after an edit, no response?'''
-        #acc =  access.getAccess(db_name, collection_name, self, 'update')
+        if not access.checkAccessKey(db_name, collection_name, access.Update,
+                                     self.get_current_user(), self.request):
+            raise HTTPError(403)
+        
         collection = self.mongo_conn[db_name][collection_name]
         new_item = json.loads(self.request.body, object_hook=pymongo.json_util.object_hook)
-        #old_item = collection.find_one({'_id':id}, acc.fields)
-        #new_item = acc.validateUpdate(old_item, new_item)
         collection.save(new_item)
 
     def delete(self, db_name, collection_name, id):
         '''Delete an item, what should I return?'''
-        #acc = access.getAccess(db_name, collection_name, self, 'delete')
+        if not access.checkAccessKey(db_name, collection_name, access.Delete,
+                                     self.get_current_user(), self.request):
+            raise HTTPError(403)
+        
         collection = self.mongo_conn[db_name][collection_name]
-        #old_item = collection[{'_id':id}]
-        #acc.validateDelete(old_item)
         collection.remove( { '_id' : id }, True )
+
+def generate_secret():
+    '''Generate the secret string for hmac'''
+    return ''.join(random.choice(string.letters + string.digits + string.punctuation)
+                   for i in range(100))
 
 def run(port=8888, threads=4, debug=False, static=False, pid=None, 
         mongo_host='127.0.0.1', mongo_port=27017):
@@ -236,7 +260,7 @@ def run(port=8888, threads=4, debug=False, static=False, pid=None,
         import daemon
         daemon.daemonize(pid)
     kwargs = {
-        'cookie_secret':'480fae4e819d28eeb1cc9f84dc471bad',
+        'cookie_secret': generate_secret(),
         'debug': debug,
         'thread_count': threads,
         'mongo_conn' : pymongo.Connection(mongo_host, mongo_port)
@@ -247,10 +271,9 @@ def run(port=8888, threads=4, debug=False, static=False, pid=None,
         # why do we need this optional undefined string, explorer seems to be adding it
         # workaround for the bug fixed (we think) by http://trac.dojotoolkit.org/changeset/21041
         # was
-        (r"/data/([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/(?:undefined)?$", CollectionHandler),
-        (r"/data/([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/(?:undefined)?([a-f0-9]+)", ItemHandler),
-        (r"/data/login(.*)", AuthHandler),
-        (r"/data/user", UserHandler),
+        (r"/data/([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/$", CollectionHandler),
+        (r"/data/([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/([a-f0-9]+)", ItemHandler),
+        (r"/data/_auth(.*)$", AuthHandler),
     ], **kwargs)
     http_server = tornado.httpserver.HTTPServer(application)
     http_server.listen(port)
