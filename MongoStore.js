@@ -12,6 +12,19 @@ dojo.require('dojox.rpc.Rest');
 dojo.require('dojox.data.JsonRestStore');
 
 dojo.declare('uow.data.MongoStore', [dojox.data.JsonRestStore], {
+    constructor: function(options){
+        // monkey patch service._getRequest to insert an additional header
+        if (options.accessKey) {
+            var _getRequest = this.service._getRequest;
+            var myKey = options.accessKey;
+            var myGetRequest = function(id, args) {
+                var request = _getRequest(id, args);
+                request.headers['Authorization'] = myKey;
+                return request;
+            };
+            this.service._getRequest = myGetRequest;
+        }
+    },
     _doQuery: function(args) {
         console.log('doQuery', args);
         // pack the query into one parameter with the query args json and uri encoded
