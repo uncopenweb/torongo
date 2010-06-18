@@ -52,10 +52,30 @@ class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
                 return
             #print 'calling authenticate_redirect'
             self.authenticate_redirect()
+        elif id == '-start':
+            resp = '''
+<html>
+  <head>
+  </head>
+  <body onload="window.opener.uow._handleOpenIDStart();window.location='_auth';>
+    This page is just before redirect to Google.
+  </body>
+</html>
+'''
+            self.write(resp)
+            self.finish()
         else:
             #print 'sending response'
             # wrap up the authorization
-            resp = '''<html><head></head><body onload="window.opener.uow._handleOpenIDResponse('%s');window.close();">This page is after login is complete.</body></html>''' % id[1:]
+            resp = '''
+<html>
+  <head>
+  </head>
+  <body onload="window.opener.uow._handleOpenIDResponse('%s');window.close();">
+    This page is after login is complete.
+  </body>
+</html>'''
+            resp = resp % id[1:]
             self.write(resp)
             self.finish()
 
@@ -64,9 +84,9 @@ class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
         if user:
             self.set_secure_cookie("user", tornado.escape.json_encode(user))
             #print 'set the cookie', user
-            self.redirect("/data/login-ok")
+            self.redirect("/data/_auth-ok")
         else:
-            self.redirect("/data/login-failed")
+            self.redirect("/data/_auth-failed")
 
     def post(self, id):
         '''Open a db/collection with requested permissions'''
