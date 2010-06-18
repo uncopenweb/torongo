@@ -8,7 +8,6 @@ import tornado.httpserver
 import tornado.ioloop
 import tornado.web
 from tornado.web import HTTPError
-import tornado.auth
 import pymongo
 import pymongo.json_util
 import thread_util
@@ -27,78 +26,6 @@ def newId():
     '''Use the mongo ID mechanism but convert them to strings'''
     # Not sure why I prefer the strings, they sure look better than the objects
     return str(pymongo.objectid.ObjectId())
-
-class BaseHandler(mongo_util.MongoRequestHandler):
-    '''Manage user cookie'''
-    def get_current_user(self):
-        user_json = self.get_secure_cookie("user")
-        if not user_json:
-            result = { 'email' : 'None' }
-        else:
-            result = tornado.escape.json_decode(user_json)
-        #print 'get_current_user', result
-        return result
-
-class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
-    '''Handle authentication using Google OpenID'''
-    @tornado.web.asynchronous
-    def get(self, id):
-        #print 'auth get', id
-        if not id:
-            # start auth from Google
-            if self.get_argument("openid.mode", None):
-                #print 'calling get_authenticed_user'
-                self.get_authenticated_user(self.async_callback(self._on_auth))
-                return
-            #print 'calling authenticate_redirect'
-            self.authenticate_redirect()
-        elif id == '-start':
-            resp = '''
-<html>
-  <head>
-  </head>
-  <body onload="window.opener.uow._handleOpenIDStart();window.location='_auth';>
-    This page is just before redirect to Google.
-  </body>
-</html>
-'''
-            self.write(resp)
-            self.finish()
-        else:
-            #print 'sending response'
-            # wrap up the authorization
-            resp = '''
-<html>
-  <head>
-  </head>
-  <body onload="window.opener.uow._handleOpenIDResponse('%s');window.close();">
-    This page is after login is complete.
-  </body>
-</html>'''
-            resp = resp % id[1:]
-            self.write(resp)
-            self.finish()
-
-    def _on_auth(self, user):
-        #print 'on_auth', user
-        if user:
-            self.set_secure_cookie("user", tornado.escape.json_encode(user))
-            #print 'set the cookie', user
-            self.redirect("/data/_auth-ok")
-        else:
-            self.redirect("/data/_auth-failed")
-
-    def post(self, id):
-        '''Open a db/collection with requested permissions'''
-        args = json.loads(self.request.body, object_hook=pymongo.json_util.object_hook)
-        db = args['database']
-        collection = args['collection']
-        mode = args['mode']
-        user = self.get_current_user()
-        key = access.makeAccessKey(db, collection, mode, user, self.request)
-        url = '/data/%s/%s/' % (db, collection)
-        self.write({ 'url' : url,
-                     'key' : key })
 
 JSRE = re.compile(r'^/(.*)/([igm]*)$')
 DojoGlob = re.compile(r'[?*]')
@@ -151,11 +78,10 @@ def TranslateQuery(obj):
         return obj
             
 # handle requests without an id
-class CollectionHandler(BaseHandler):
+class CollectionHandler(access.BaseHandler):
     def get(self, db_name, collection_name):
         '''Handle queries'''
-        acc = access.checkAccessKey(db_name, collection_name, access.Read,
-                                    self.get_current_user(), self.request)
+        acc = self.checkAccessKey(db_name, collection_name, access.Read)
         if acc is False:
             raise HTTPError(403)
         
@@ -206,8 +132,7 @@ class CollectionHandler(BaseHandler):
 
     def post(self, db_name, collection_name):
         '''Create a new item and return the single item not an array'''
-        if not access.checkAccessKey(db_name, collection_name, access.Create,
-                                     self.get_current_user(), self.request):
+        if not self.checkAccessKey(db_name, collection_name, access.Create):
             raise HTTPError(403)
         
         collection = self.mongo_conn[db_name][collection_name]
@@ -226,18 +151,16 @@ class CollectionHandler(BaseHandler):
 
     def delete(self, db_name, collection_name):
         '''Drop the collection'''
-        if not access.checkAccessKey(db_name, collection_name, access.Drop,
-                                     self.get_current_user(), self.request):
+        if not self.checkAccessKey(db_name, collection_name, access.DropCollection):
             raise HTTPError(403)
         self.mongo_conn[db_name].drop_collection(collection_name)
         self.write('ok')        
 
 # handle requests with an id
-class ItemHandler(BaseHandler):
+class ItemHandler(access.BaseHandler):
     def get(self, db_name, collection_name, id):
         '''Handle requests for single items'''
-        if not access.checkAccessKey(db_name, collection_name, access.Read,
-                                     self.get_current_user(), self.request):
+        if not self.checkAccessKey(db_name, collection_name, access.Read):
             raise HTTPError(403)
         
         collection = self.mongo_conn[db_name][collection_name]
@@ -251,8 +174,7 @@ class ItemHandler(BaseHandler):
 
     def put(self, db_name, collection_name, id):
         '''update an item after an edit, no response?'''
-        if not access.checkAccessKey(db_name, collection_name, access.Update,
-                                     self.get_current_user(), self.request):
+        if not self.checkAccessKey(db_name, collection_name, access.Update):
             raise HTTPError(403)
         
         collection = self.mongo_conn[db_name][collection_name]
@@ -261,8 +183,7 @@ class ItemHandler(BaseHandler):
 
     def delete(self, db_name, collection_name, id):
         '''Delete an item, what should I return?'''
-        if not access.checkAccessKey(db_name, collection_name, access.Delete,
-                                     self.get_current_user(), self.request):
+        if not self.checkAccessKey(db_name, collection_name, access.Delete):
             raise HTTPError(403)
         
         collection = self.mongo_conn[db_name][collection_name]
@@ -293,7 +214,7 @@ def run(port=8888, threads=4, debug=False, static=False, pid=None,
         # was
         (r"/data/([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/$", CollectionHandler),
         (r"/data/([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/([a-f0-9]+)", ItemHandler),
-        (r"/data/_auth(.*)$", AuthHandler),
+        (r"/data/_auth(.*)$", access.AuthHandler),
     ], **kwargs)
     http_server = tornado.httpserver.HTTPServer(application)
     http_server.listen(port)
