@@ -14,14 +14,14 @@ import mongo_util
 import json
 
 ModeBits = tuple(1 << i for i in random.sample(xrange(31), 6)) # key values
-Create, Read, Update, Delete, DropCollection, CreateNewCollection = ModeBits
+Create, Read, Update, Delete, DropCollection, List = ModeBits
 
-iMode = { 'c': Create,
-          'r': Read,
-          'u': Update,
-          'd': Delete,
-          'D': DropCollection,
-          'C': CreateNewCollection }
+iMode = { 'c': Create,          # create records
+          'r': Read,            # read/search records
+          'u': Update,          # update record
+          'd': Delete,          # delete record
+          'D': DropCollection,  # drop whole collection
+          'L': List }           # list collections
 
 Mask = sum(ModeBits)
 Key = ''.join(random.choice(string.letters + string.digits + string.punctuation) 
@@ -128,7 +128,10 @@ class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
         mode = args['mode']
         user = self.get_current_user()
         key = self.makeAccessKey(db, collection, mode)
-        url = '/data/%s/%s/' % (db, collection)
+        if collection == '*':
+            url = '/data/%s/' % db
+        else:
+            url = '/data/%s/%s/' % (db, collection)
         self.write({ 'url' : url,
                      'key' : key })
 
