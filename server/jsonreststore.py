@@ -76,7 +76,50 @@ def TranslateQuery(obj):
     else:
         # pass anything else on
         return obj
+
+# handle requests with only a db name
+class DatabaseHandler(access.BaseHandler):
+    def get(self, db_name, collection_name):
+        '''Handle queries for collection names'''
+        if collection_name:
+            raise HTTPError(400)
             
+        if not self.checkAccessKey(db_name, '*', access.List):
+            raise HTTPError(403)
+        db = self.mongo_conn[db_name]
+        names = db.collection_names()
+        Nitems = len(names)
+        
+        # should handle query parameters here, for now just return them all
+
+        # see how much we are to send
+        r = re.compile(r'items=(\d+)-(\d+)').match(self.request.headers.get('Range', ''))
+        if r:
+            start = int(r.group(1))
+            stop = int(r.group(2))
+        else:
+            start = 0
+            stop = min(10, Nitems)
+        names = names[start:stop+1]
+        
+        result = [ { "_id": name, "url": "/data/%s/%s/" % (db_name, name) }
+                   for name in names
+                   if name != 'system.indexes' ]
+
+        # send the result
+        self.set_header('Content-range', 'items %d-%d/%d' % (start,stop,Nitems))
+        s = json.dumps(result, default=pymongo.json_util.default)
+        self.set_header('Content-length', len(s))
+        self.set_header('Content-type', 'application/json')
+        self.write(s)
+
+    def delete(self, db_name, collection_name):
+        '''Drop the collection'''
+        if not self.checkAccessKey(db_name, collection_name, access.DropCollection):
+            raise HTTPError(403)
+        self.mongo_conn[db_name].drop_collection(collection_name)
+        self.write('ok')        
+        
 # handle requests without an id
 class CollectionHandler(access.BaseHandler):
     def get(self, db_name, collection_name):
@@ -149,13 +192,6 @@ class CollectionHandler(access.BaseHandler):
         self.set_header('Content-type', 'application/json')
         self.write(s)
 
-    def delete(self, db_name, collection_name):
-        '''Drop the collection'''
-        if not self.checkAccessKey(db_name, collection_name, access.DropCollection):
-            raise HTTPError(403)
-        self.mongo_conn[db_name].drop_collection(collection_name)
-        self.write('ok')        
-
 # handle requests with an id
 class ItemHandler(access.BaseHandler):
     def get(self, db_name, collection_name, id):
@@ -212,6 +248,7 @@ def run(port=8888, threads=4, debug=False, static=False, pid=None,
         # why do we need this optional undefined string, explorer seems to be adding it
         # workaround for the bug fixed (we think) by http://trac.dojotoolkit.org/changeset/21041
         # was
+        (r"/data/([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)?$", DatabaseHandler),
         (r"/data/([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/$", CollectionHandler),
         (r"/data/([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/([a-f0-9]+)", ItemHandler),
         (r"/data/_auth(.*)$", access.AuthHandler),
@@ -223,7 +260,7 @@ def run(port=8888, threads=4, debug=False, static=False, pid=None,
 def generate_sample_data(n, host, port):
     import string, random
     docs = [ { 'label' : ''.join(random.sample(string.lowercase, random.randint(2,9))),
-               'value': i,
+               'value': i * 1.1 + 0.01,
                '_id': newId() }
              for i in range(n) ]
     for doc in docs:
@@ -264,7 +301,6 @@ def run_from_args():
         vals = generate_sample_data(options.generate, options.mongohost, 
             options.mongoport)
         print 'Generated %d random items in db: %s, collection: %s' % vals
-        return
     # run the server
     run(options.port, options.workers, options.debug, options.static, 
         options.pid, options.mongohost, options.mongoport)
