@@ -12,6 +12,12 @@ import pymongo
 import pymongo.json_util
 import mongo_util
 import json
+import os
+
+# seed the random number generator so all instances get the same key
+stat = os.stat(__file__)
+seed = stat.st_mtime * os.getppid()
+random.seed(seed)
 
 ModeBits = tuple(1 << i for i in random.sample(xrange(31), 6)) # key values
 Create, Read, Update, Delete, DropCollection, List = ModeBits
