@@ -76,6 +76,20 @@ def TranslateQuery(obj):
     else:
         # pass anything else on
         return obj
+        
+def doQuery(item, spec):
+    '''simulate a mongo query on the collection names'''
+    if not spec:
+        return True
+    if type(spec) == dict:
+        for key,value in spec.iteritems():
+            if key not in item:
+                return False
+            if value == item[key] or hasattr(value, 'search') and value.search(unicode(item[key])):
+                continue
+            else:
+                return False
+    return True
 
 # handle requests with only a db name
 class DatabaseHandler(access.BaseHandler):
@@ -88,11 +102,26 @@ class DatabaseHandler(access.BaseHandler):
             raise HTTPError(403)
         db = self.mongo_conn[db_name]
         names = db.collection_names()
-        Nitems = len(names)
-        
-        # should handle query parameters here, for now just return them all
+        result = [ { "_id": name, "url": "/data/%s/%s/" % (db_name, name) }
+                   for name in names
+                   if name != 'system.indexes' ]
+
+        # handle query parameters
+        spec = {}
+        if 'mq' in self.request.arguments:
+            q = self.request.arguments['mq'][0]
+            # remove url quoting
+            q = urllib.unquote(q)
+            # convert from json
+            q = json.loads(q)
+            # convert to format expected by mongo
+            spec = TranslateQuery(q)
+
+        # simulate what mongo would do to select the names...
+        result = [ item for item in result if doQuery(item, spec) ]
 
         # see how much we are to send
+        Nitems = len(result)
         r = re.compile(r'items=(\d+)-(\d+)').match(self.request.headers.get('Range', ''))
         if r:
             start = int(r.group(1))
@@ -100,12 +129,8 @@ class DatabaseHandler(access.BaseHandler):
         else:
             start = 0
             stop = min(10, Nitems)
-        names = names[start:stop+1]
+        result = result[start:stop+1]
         
-        result = [ { "_id": name, "url": "/data/%s/%s/" % (db_name, name) }
-                   for name in names
-                   if name != 'system.indexes' ]
-
         # send the result
         self.set_header('Content-range', 'items %d-%d/%d' % (start,stop,Nitems))
         s = json.dumps(result, default=pymongo.json_util.default)
