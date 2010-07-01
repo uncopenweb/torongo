@@ -128,7 +128,7 @@ class DatabaseHandler(access.BaseHandler):
             stop = int(r.group(2))
         else:
             start = 0
-            stop = min(10, Nitems)
+            stop = Nitems
         result = result[start:stop+1]
         
         # send the result
