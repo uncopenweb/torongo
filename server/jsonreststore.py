@@ -10,16 +10,14 @@ import tornado.web
 from tornado.web import HTTPError
 import pymongo
 import pymongo.json_util
-import thread_util
 import mongo_util
 import os
 import json
 import re
-import random
 import string
+import random
 import urllib
 import optparse
-import random
 import access
 
 def newId():
@@ -96,10 +94,10 @@ class DatabaseHandler(access.BaseHandler):
     def get(self, db_name, collection_name):
         '''Handle queries for collection names'''
         if collection_name:
-            raise HTTPError(400)
+            raise HTTPError(400, 'db does not exist')
             
         if not self.checkAccessKey(db_name, '*', access.List):
-            raise HTTPError(403)
+            raise HTTPError(403, 'listing not permitted (%s)' % self.checkAccessKeyMessage)
         db = self.mongo_conn[db_name]
         names = db.collection_names()
         result = [ { "_id": name, "url": "/data/%s/%s/" % (db_name, name) }
@@ -141,7 +139,7 @@ class DatabaseHandler(access.BaseHandler):
     def delete(self, db_name, collection_name):
         '''Drop the collection'''
         if not self.checkAccessKey(db_name, collection_name, access.DropCollection):
-            raise HTTPError(403)
+            raise HTTPError(403, 'drop collection not permitted (%s)' % self.checkAccessKeyMessage)
         self.mongo_conn[db_name].drop_collection(collection_name)
         self.write('ok')        
         
@@ -149,15 +147,14 @@ class DatabaseHandler(access.BaseHandler):
 class CollectionHandler(access.BaseHandler):
     def get(self, db_name, collection_name):
         '''Handle queries'''
-        acc = self.checkAccessKey(db_name, collection_name, access.Read)
-        if acc is False:
-            raise HTTPError(403)
+        if not self.checkAccessKey(db_name, collection_name, access.Read):
+            raise HTTPError(403, 'read not permitted (%s)' % self.checkAccessKeyMessage)
         
         collection = self.mongo_conn[db_name][collection_name]
 
         # check for a query
         spec = {}
-        if acc and 'mq' in self.request.arguments:
+        if 'mq' in self.request.arguments:
             q = self.request.arguments['mq'][0]
             # pass an arbitrary query into mongo, the query is json encoded and
             # then url quoted
@@ -169,11 +166,10 @@ class CollectionHandler(access.BaseHandler):
             # convert to format expected by mongo
             spec = TranslateQuery(q)
 
-        cursor = collection.find(spec) #, acc.fields)
+        cursor = collection.find(spec)
 
         # check for a sorting request
-        # should handle multiple sorts like sort(-length,+letters)
-        if acc and 'ms' in self.request.arguments:
+        if 'ms' in self.request.arguments:
             sortSpec = []
             for s in self.request.arguments['ms'][0].split(','):
                 sortSpec.append((s[1:], { '+':pymongo.ASCENDING, '-':pymongo.DESCENDING }[s[0]]))
@@ -183,7 +179,7 @@ class CollectionHandler(access.BaseHandler):
 
         # see how much we are to send
         r = re.compile(r'items=(\d+)-(\d+)').match(self.request.headers.get('Range', ''))
-        if acc and r:
+        if r:
             start = int(r.group(1))
             stop = int(r.group(2))
         else:
@@ -201,15 +197,17 @@ class CollectionHandler(access.BaseHandler):
     def post(self, db_name, collection_name):
         '''Create a new item and return the single item not an array'''
         if not self.checkAccessKey(db_name, collection_name, access.Create):
-            raise HTTPError(403)
+            raise HTTPError(403, 'create not permitted (%s)' % self.checkAccessKeyMessage)
         
         collection = self.mongo_conn[db_name][collection_name]
 
         item = json.loads(self.request.body, object_hook=pymongo.json_util.object_hook)
 
+        self.validateSchema(db_name, collection_name, item)
+        
         id = newId()
         item['_id'] = id
-        collection.insert(item)
+        collection.insert(item, safe=True)
         # this path should get encoded only one place, fix this
         self.set_header('Location', '/data/%s/%s/%s' % (db_name, collection_name, id))
         s = json.dumps(item, default=pymongo.json_util.default)
@@ -222,7 +220,7 @@ class ItemHandler(access.BaseHandler):
     def get(self, db_name, collection_name, id):
         '''Handle requests for single items'''
         if not self.checkAccessKey(db_name, collection_name, access.Read):
-            raise HTTPError(403)
+            raise HTTPError(403, 'read not permitted (%s)' % self.checkAccessKeyMessage)
         
         collection = self.mongo_conn[db_name][collection_name]
         
@@ -236,19 +234,20 @@ class ItemHandler(access.BaseHandler):
     def put(self, db_name, collection_name, id):
         '''update an item after an edit, no response?'''
         if not self.checkAccessKey(db_name, collection_name, access.Update):
-            raise HTTPError(403)
+            raise HTTPError(403, 'update not permitted (%s)' % self.checkAccessKeyMessage)
         
         collection = self.mongo_conn[db_name][collection_name]
         new_item = json.loads(self.request.body, object_hook=pymongo.json_util.object_hook)
-        collection.save(new_item)
+        self.validateSchema(db_name, collection_name, new_item)
+        collection.save(new_item, safe=True)
 
     def delete(self, db_name, collection_name, id):
         '''Delete an item, what should I return?'''
         if not self.checkAccessKey(db_name, collection_name, access.Delete):
-            raise HTTPError(403)
+            raise HTTPError(403, 'delete item not permitted (%s)' % self.checkAccessKeyMessage)
         
         collection = self.mongo_conn[db_name][collection_name]
-        collection.remove( { '_id' : id }, True )
+        collection.remove( { '_id' : id }, safe=True )
 
 def generate_secret():
     '''Generate the secret string for hmac'''

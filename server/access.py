@@ -13,6 +13,12 @@ import pymongo.json_util
 import mongo_util
 import json
 import os
+import socket
+import struct
+import jsonschema
+import sys
+import httplib
+import traceback
 
 # seed the random number generator so all instances get the same key
 stat = os.stat(__file__)
@@ -29,6 +35,8 @@ iMode = { 'c': Create,          # create records
           'D': DropCollection,  # drop whole collection
           'L': List }           # list collections
 
+allModes = set(iMode.keys())
+
 Mask = sum(ModeBits)
 Key = ''.join(random.choice(string.letters + string.digits + string.punctuation) 
               for i in range(99))
@@ -40,6 +48,17 @@ def makeSignature(db, collection, user, modebits, timebits):
     signature = hmac.new(Key, db + collection + modebits + timebits, hashlib.sha1).hexdigest()
     return signature
 
+def matchIP(ip, pattern):
+    if ip == pattern:
+        return True
+    if '/' in pattern:
+        pip, bits = pattern.split('/')
+        n0 = struct.unpack('!I', socket.inet_aton(ip))[0]
+        n1 = struct.unpack('!I', socket.inet_aton(pip))[0]
+        shift = (32 - int(bits))
+        return (n0 >> shift) == (n1 >> shift)
+    return False
+        
 class BaseHandler(mongo_util.MongoRequestHandler):
     '''Manage user cookie'''
     def get_current_user(self):
@@ -50,32 +69,169 @@ class BaseHandler(mongo_util.MongoRequestHandler):
             result = tornado.escape.json_decode(user_json)
         #print 'get_current_user', result
         return result
+        
+    def isDeveloper(self, user=None):
+        '''Return true for local developers'''
+        if user is None:
+            user = self.get_current_user()
+        # this should probably be disabled on the production server
+        # note the db name _Admin is not accessible from this web interface
+        devel = self.mongo_conn['_Admin']['Developers']
+        info = devel.find_one({ 'user': user['email'] })
+        if not info:
+            print >>sys.stderr, user, "not in developers"
+            return False
+        if 'X-Real-Ip' not in self.request.headers:
+            print >>sys.stderr, "X-Real-Ip not found"
+            return False
+        if 'X-Uow-User' not in self.request.headers:
+            print >>sys.stderr, "X-Uow-User not found"
+            print >>sys.stderr, self.request.headers
+            return False
+        rip = self.request.headers['X-Real-IP']
+        if 'ips' in info:
+            for ip in info['ips']:
+                if matchIP(rip, ip):
+                    print >>sys.stderr, "IP OK"
+                    return True
+            print >>sys.stderr, "IP not in list"
+            return False
+        else:
+            print >>sys.stderr, "OK"
+            return True   
 
-    def makeAccessKey(self, db, collection, modestring):
-        # fetch the access collection for this database
+    def makeAccessKey(self, dbName, collection, modestring):
+        '''Create an access key for a database/collection pair with the requested mode
+        
+        Note: We only lookup the user Role and Permissions here. Later we trust the key.
+        '''
+        # get the user so we can check permissions
         user = self.get_current_user()
-        omode = sum(iMode[c] for c in modestring if c in iMode)
+        # restrict requested modes to legal ones
+        requested_mode = set(modestring) & allModes
+        
+        # connect to the db
+        db = self.mongo_conn[dbName]
+        # get the names of all the collecitons
+        collections = db.collection_names()
+        print >>sys.stderr, 'collections', collections
+        # check if this is a controlled db
+        if (not collections or                      # empty db
+            'AccessUsers' not in collections or     # AccessUsers collection absent
+            'AccessModes' not in collections):      # AccessModes collection absent
+            if not self.isDeveloper(user):
+                allowed_mode = set() # non-developers can't touch uncontrolled db's
+            else:
+                allowed_mode = requested_mode # developers can do whatever they request
+
+        else: # controlled db
+            # fetch a role for this user
+            AccessUsers = db['AccessUsers']
+            info = AccessUsers.find_one( { 'user': user['email'] } )
+            if info:
+                role = info['role']
+            elif user['email'] == 'None': # not logged in
+                role = 'anonymous'
+            else:
+                role = 'identified' # logged in but not specifically given a role
+
+            # fetch permissions for this role
+            AccessModes = db['AccessModes']
+            # look for the role, collection pair
+            perms = AccessModes.find_one( { 'role': role, 'collection': collection } )
+            if not perms:
+                # look for the role for ANY collection
+                perms = AccessModes.find_one( { 'role': role, 'collection': '_ANY_' } )
+                if not perms:
+                    # look for ANY role for the collection
+                    perms = AccessModes.find_one( { 'role': '_ANY_', 'collection': collection } )
+                    if not perms:
+                        # nothing allowed
+                        perms = { 'role': role, 'collection': collection, 'permission': '' }
+            # allowed is the intersection between requested and permitted
+            allowed_mode = requested_mode & set(perms['permission'])
+        print >>sys.stderr, "allowed mode", allowed_mode
+        # create the bit pattern from the mode
+        omode = sum(iMode[c] for c in allowed_mode)
+        # format the bits
         modebits = '%x' % (omode | Noise)
         timebits = '%x' % int(datetime.now().strftime('%y%m%d%H%M%S'))
-        key = '%s-%s-%s' % (modebits, timebits, makeSignature(db, collection, user, modebits,
+        # construct the signed result
+        key = '%s-%s-%s' % (modebits, timebits, makeSignature(dbName, collection, user, modebits,
                             timebits))
         return key
 
     def checkAccessKey(self, db, collection, mode):
-        print self.request.headers
+        '''Validate an access key'''
+        self.checkAccessKeyMessage = ''
         key = self.request.headers.get('Authorization', None)
         if not key:
+            self.checkAccessKeyMessage = 'missing authorization header'
             return None
-        modebits, timebits, signature = key.split('-')
+        try:
+            modebits, timebits, signature = key.split('-')
+        except ValueError:
+            self.checkAccessKeyMessage = 'bad authorization header'
+            return False
         user = self.get_current_user()
         if signature != makeSignature(db, collection, user, modebits, timebits):
+            self.checkAccessKeyMessage = 'invalid signature'
             return False
         timebits = str(int(timebits, 16))
         delay = datetime.now() - datetime.strptime(timebits, '%y%m%d%H%M%S')
         if delay > KeyDuration:
+            self.checkAccessKeyMessage = 'key expired'
             return False
         allowedMode = int(modebits, 16) & Mask
-        return (allowedMode & mode) != 0
+        result = (allowedMode & mode) != 0
+        if not result:
+            self.checkAccessKeyMessage = 'Mode not in allowed set'
+        return result
+        
+    def validateSchema(self, db, collection, item):
+        schemas = self.mongo_conn['_Admin']['Schemas']
+        info = schemas.find_one({ 'db': db, 'collection': collection })
+        print >>sys.stderr, 'db=', db, 'collection=', collection, 'item', item, 'info', info
+        if not info:
+            print >>sys.stderr, "No schema"
+            return
+        print >>sys.stderr, "validating"
+        try:
+            jsonschema.validate(item, info['schema'])
+        except ValueError, e:
+            print >>sys.stderr, "failed", e.message
+            raise HTTPError(403, e.message)
+        print >>sys.stderr, "OK"
+        
+    def get_error_html(self, status_code, **kwargs):
+        '''Override their error message to give developers more info'''
+        description = httplib.responses[status_code]
+        message = ''
+        if self.isDeveloper() and 'exception' in kwargs:
+            exc = kwargs['exception']
+            if isinstance(exc, HTTPError):
+                message = exc.log_message
+            else:
+                message = traceback.format_exc()
+
+        return '''<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>%(code)d: %(description)s</title>
+  </head>
+  <body><p>%(code)d: %(description)s<p><pre>%(message)s</pre></body>
+</html>''' % {
+                "code": status_code,
+                "description": description,
+                "message": message,
+            }
+#        return "<html><title>%(code)d: %(description)s</title>" \
+#               "<body>%(code)d: %(message)s</body></html>" % {
+#            "code": status_code,
+#            "description": description,
+#            "message": message,
+#        }
+
 
 class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
     '''Handle authentication using Google OpenID'''
@@ -132,7 +288,6 @@ class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
         db = args['database']
         collection = args['collection']
         mode = args['mode']
-        user = self.get_current_user()
         key = self.makeAccessKey(db, collection, mode)
         if collection == '*':
             url = '/data/%s/' % db
