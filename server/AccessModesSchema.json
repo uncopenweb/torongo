@@ -1,0 +1,26 @@
+{
+    "description": "Map Roles to Modes",
+    "type": "object",
+    "properties": {
+        "collection": {
+            "type": "string",
+            "description": "Collection name.",
+            "title": "Collection",
+            "maxLength": 20
+        },
+        "role": {
+            "type": "string",
+            "description": "Role name",
+            "title": "Role",
+            "maxLength": 20
+        },
+        "mode": {
+            "type": "string",
+            "description": "Mode string [crudDL]*.",
+            "title": "Modes",
+            "maxLength": 20
+        }
+    }
+}
+
+
