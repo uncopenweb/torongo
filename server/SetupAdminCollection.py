@@ -49,6 +49,14 @@ status = {
     }
 }
 
+test = {
+    'type': 'object',
+    'properties': {
+        'word': { 'type': 'string', 'maxLength': 25 },
+        'value': { 'type': 'integer' },
+    }
+}
+
 AccessUsersSchema = json.load(file('AccessUsersSchema.json', 'r'))
 AccessModesSchema = json.load(file('AccessModesSchema.json', 'r'))
 
@@ -63,6 +71,8 @@ cl.insert( { 'db': 'catalog', 'collection': 'AccessUsers', '_id': newId(),
              'schema': AccessUsersSchema } )
 cl.insert( { 'db': 'catalog', 'collection': 'AccessModes', '_id': newId(),
              'schema': AccessModesSchema } )
+cl.insert( { 'db': 'test', 'collection': 'test', '_id': newId(),
+             'schema': test });
 
 
 # setup roles
@@ -75,10 +85,22 @@ cl.insert({ 'user': 'anonymous', 'role': 'anonymous', '_id': newId() })
 db.drop_collection('AccessModes')
 cl = db['AccessModes']
 cl.insert({ 'role': 'admin', 'collection': 'rolodex', 'permission': 'crudDL', '_id': newId() })
-cl.insert({ 'role': 'anonymous', 'collection': 'rolodex', 'permission': 'r', '_id': newId() })
+cl.insert({ 'role': 'anonymous', 'collection': 'rolodex', 'permission': 'rc', '_id': newId() })
 cl.insert({ 'role': '_ANY_', 'collection': 'status', 'permission': 'c', '_id': newId() })
 cl.insert({ 'role': 'admin', 'collection': 'AccessUsers', 'permission': 'crud', '_id': newId() })
 cl.insert({ 'role': 'admin', 'collection': 'AccessModes', 'permission': 'crud', '_id': newId() })
+
+# roles for test
+db = conn['test']
+db.drop_collection('AccessUsers')
+cl = db['AccessUsers']
+cl.insert({ 'user': 'gary.bishop.unc@gmail.com', 'role': 'admin', '_id': newId() })
+cl.insert({ 'user': 'anonymous', 'role': 'anonymous', '_id': newId() })
+db.drop_collection('AccessModes')
+cl = db['AccessModes']
+cl.insert({ 'role': 'admin', 'collection': 'test', 'permission': 'crudDL', '_id': newId() })
+cl.insert({ 'role': 'anonymous', 'collection': 'test', 'permission': 'r', '_id': newId() })
+
 
 # clean out the default collections
 db.drop_collection('rolodex')
