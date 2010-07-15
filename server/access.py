@@ -24,25 +24,20 @@ import traceback
 stat = os.stat(__file__)
 seed = stat.st_mtime * os.getppid()
 random.seed(seed)
-
-ModeBits = tuple(1 << i for i in random.sample(xrange(31), 6)) # key values
-Create, Read, Update, Delete, DropCollection, List = ModeBits
-
-iMode = { 'c': Create,          # create records
-          'r': Read,            # read/search records
-          'u': Update,          # update record
-          'd': Delete,          # delete record
-          'D': DropCollection,  # drop whole collection
-          'L': List }           # list collections
-
-allModes = set(iMode.keys())
-
-Mask = sum(ModeBits)
 Key = ''.join(random.choice(string.letters + string.digits + string.punctuation) 
               for i in range(99))
-Noise = random.getrandbits(31) & ~Mask
 
-KeyDuration = timedelta(1, 0) # default to one day
+# mode names
+Create = set('c')
+Read = set('r')
+Update = set('u')
+Delete = set('d')
+DropCollection = set('D')
+List = set('L')
+
+modeSet = Create | Read | Update | Delete | DropCollection | List
+
+KeyDuration = timedelta(1, 0) # one day
 
 def makeSignature(db, collection, user, modebits, timebits):
     signature = hmac.new(Key, db + collection + modebits + timebits, hashlib.sha1).hexdigest()
@@ -64,7 +59,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
     def get_current_user(self):
         user_json = self.get_secure_cookie("user")
         if not user_json:
-            result = { 'email' : 'None' }
+            result = { 'email' : None }
         else:
             result = tornado.escape.json_decode(user_json)
         #print 'get_current_user', result
@@ -108,7 +103,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         # get the user so we can check permissions
         user = self.get_current_user()
         # restrict requested modes to legal ones
-        requested_mode = set(modestring) & allModes
+        requested_mode = set(modestring) & modeSet
         
         # connect to the db
         db = self.mongo_conn[dbName]
@@ -130,7 +125,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
             info = AccessUsers.find_one( { 'user': user['email'] } )
             if info:
                 role = info['role']
-            elif user['email'] == 'None': # not logged in
+            elif user['email'] is None: # not logged in
                 role = 'anonymous'
             else:
                 role = 'identified' # logged in but not specifically given a role
@@ -151,10 +146,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
             # allowed is the intersection between requested and permitted
             allowed_mode = requested_mode & set(perms['permission'])
         print >>sys.stderr, "allowed mode", allowed_mode
-        # create the bit pattern from the mode
-        omode = sum(iMode[c] for c in allowed_mode)
-        # format the bits
-        modebits = '%x' % (omode | Noise)
+        modebits = ''.join(allowed_mode)
         timebits = '%x' % int(datetime.now().strftime('%y%m%d%H%M%S'))
         # construct the signed result
         key = '%s-%s-%s' % (modebits, timebits, makeSignature(dbName, collection, user, modebits,
@@ -182,8 +174,8 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         if delay > KeyDuration:
             self.checkAccessKeyMessage = 'key expired'
             return False
-        allowedMode = int(modebits, 16) & Mask
-        result = (allowedMode & mode) != 0
+        allowedMode = set(modebits) & modeSet
+        result = (allowedMode & mode)
         if not result:
             self.checkAccessKeyMessage = 'Mode not in allowed set'
         return result
