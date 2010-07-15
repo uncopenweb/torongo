@@ -19,6 +19,7 @@ import random
 import urllib
 import optparse
 import access
+import sys
 
 def newId():
     '''Use the mongo ID mechanism but convert them to strings'''
@@ -111,7 +112,10 @@ class DatabaseHandler(access.BaseHandler):
             # remove url quoting
             q = urllib.unquote(q)
             # convert from json
-            q = json.loads(q)
+            try:
+                q = json.loads(q)
+            except ValueError, e:
+                raise HTTPError(400, unicode(e));
             # convert to format expected by mongo
             spec = TranslateQuery(q)
 
@@ -162,7 +166,10 @@ class CollectionHandler(access.BaseHandler):
             # remove url quoting
             q = urllib.unquote(q)
             # convert from json
-            q = json.loads(q)
+            try:
+                q = json.loads(q)
+            except ValueError, e:
+                raise HTTPError(400, unicode(e));
             # convert to format expected by mongo
             spec = TranslateQuery(q)
 
@@ -201,7 +208,10 @@ class CollectionHandler(access.BaseHandler):
         
         collection = self.mongo_conn[db_name][collection_name]
 
-        item = json.loads(self.request.body, object_hook=pymongo.json_util.object_hook)
+        try:
+            item = json.loads(self.request.body, object_hook=pymongo.json_util.object_hook)
+        except ValueError, e:
+            raise HTTPError(400, unicode(e));
 
         self.validateSchema(db_name, collection_name, item)
         
@@ -225,7 +235,6 @@ class ItemHandler(access.BaseHandler):
         collection = self.mongo_conn[db_name][collection_name]
         
         item = collection.find_one({'_id':id})
-        
         s = json.dumps(item, default=pymongo.json_util.default)
         self.set_header('Content-length', len(s))
         self.set_header('Content-type', 'application/json')
@@ -237,7 +246,10 @@ class ItemHandler(access.BaseHandler):
             raise HTTPError(403, 'update not permitted (%s)' % self.checkAccessKeyMessage)
         
         collection = self.mongo_conn[db_name][collection_name]
-        new_item = json.loads(self.request.body, object_hook=pymongo.json_util.object_hook)
+        try:
+            new_item = json.loads(self.request.body, object_hook=pymongo.json_util.object_hook)
+        except ValueError, e:
+            raise HTTPError(400, unicode(e));
         self.validateSchema(db_name, collection_name, new_item)
         collection.save(new_item, safe=True)
 
@@ -248,7 +260,19 @@ class ItemHandler(access.BaseHandler):
         
         collection = self.mongo_conn[db_name][collection_name]
         collection.remove( { '_id' : id }, safe=True )
+        #self.write('{ "result": "OK" }');
 
+class TestHandler(access.BaseHandler):
+    def get(self):
+        db = self.mongo_conn['test']
+        db.drop_collection('test')
+        collection = db['test']
+        
+        for value,word in enumerate(['foo', 'bar', 'fee', 'baa']):
+            collection.insert({ 'word': word, 'value': value, '_id': newId() }, safe=True)
+        
+        self.write('ok')
+        
 def generate_secret():
     '''Generate the secret string for hmac'''
     return ''.join(random.choice(string.letters + string.digits + string.punctuation)
@@ -276,6 +300,7 @@ def run(port=8888, threads=4, debug=False, static=False, pid=None,
         (r"/data/([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/$", CollectionHandler),
         (r"/data/([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/([a-f0-9]+)", ItemHandler),
         (r"/data/_auth(.*)$", access.AuthHandler),
+        (r"/data/_test_reset$", TestHandler),
     ], **kwargs)
     http_server = tornado.httpserver.HTTPServer(application)
     http_server.listen(port)
@@ -324,7 +349,7 @@ def run_from_args():
     if options.generate:
         vals = generate_sample_data(options.generate, options.mongohost, 
             options.mongoport)
-        print 'Generated %d random items in db: %s, collection: %s' % vals
+        #print 'Generated %d random items in db: %s, collection: %s' % vals
     # run the server
     run(options.port, options.workers, options.debug, options.static, 
         options.pid, options.mongohost, options.mongoport)
