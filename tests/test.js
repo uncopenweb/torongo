@@ -125,7 +125,61 @@ function validateFetch(description, key, value) {
         });
     });
 }
-    
+
+function DropTest(description, mode) {
+    test(description, function() {
+        stop();
+        dojo.xhrGet({
+            url: '/data/_test_reset',
+            sync: true
+        });
+            
+        var def = uow.getDatabase({
+                'database': 'test',
+                'collection': '*',
+                'mode': mode
+            });
+        def.addCallback(function(db) {
+            var D = isOK(mode, 'D') && loggedIn;
+            var L = isOK(mode, 'L') && loggedIn;
+
+            db.fetch( { 
+                query: { _id: 'test' },
+                onComplete: function(items) {
+                    ok(L && items.length == 1 && items[0]._id == 'test', 'test collection is present');
+                    db.deleteItem(items[0]);
+                    db.save( {
+                        onComplete: function() {
+                            db.fetch( {
+                                query: { },
+                                onComplete: function(items) {
+                                    ok(D && dojo.indexOf(items, 'test') == -1, 'test collection is gone');
+                                    start();
+                                },
+                                onError: function() {
+                                    ok(!L, 'second fetch fail');
+                                    start();
+                                }
+                            });
+                        },
+                        onError: function() {
+                            ok(!D, 'save fail');
+                            start();
+                        }
+                    });
+                },
+                onError: function() {
+                    ok(!L, 'first fetch fail');
+                    start();
+                }
+            });
+        });
+        def.addErrback(function(data) {
+            ok(false, 'open should not have failed');
+            start();
+        });
+    });
+}
 function Create(mode, valid) {
     return function(db) {
         var pass = isOK(mode, 'c') && valid && loggedIn;
@@ -256,6 +310,10 @@ function main() {
     var modes = dojo.map(combine(['c' , 'r', 'u', 'd']), function(m) {
         return m.join('');
     });
+    dojo.forEach(['DL', 'crud', 'L', 'D'], function(mode) {
+        DropTest('Drop collection ' + mode, mode);
+    });
+    
     // test delete
     dojo.forEach(modes, function(mode) {
         var msg = dojo.replace('Delete with mode {0} loggedIn == {1}', [ mode, loggedIn ]);
