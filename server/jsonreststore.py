@@ -142,7 +142,7 @@ class DatabaseHandler(access.BaseHandler):
 
     def delete(self, db_name, collection_name):
         '''Drop the collection'''
-        if not self.checkAccessKey(db_name, collection_name, access.DropCollection):
+        if not self.checkAccessKey(db_name, '*', access.DropCollection):
             raise HTTPError(403, 'drop collection not permitted (%s)' % self.checkAccessKeyMessage)
         self.mongo_conn[db_name].drop_collection(collection_name)
         self.write('ok')        
