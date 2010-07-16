@@ -98,7 +98,7 @@ cl.insert({ 'user': 'gary.bishop.unc@gmail.com', 'role': 'admin', '_id': newId()
 cl.insert({ 'user': 'anonymous', 'role': 'anonymous', '_id': newId() })
 db.drop_collection('AccessModes')
 cl = db['AccessModes']
-cl.insert({ 'role': 'admin', 'collection': 'test', 'permission': 'crudDL', '_id': newId() })
+cl.insert({ 'role': 'admin', 'collection': '_ANY_', 'permission': 'crudDL', '_id': newId() })
 cl.insert({ 'role': 'anonymous', 'collection': 'test', 'permission': 'r', '_id': newId() })
 
 
