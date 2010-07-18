@@ -149,6 +149,7 @@ class DatabaseHandler(access.BaseHandler):
         
 # handle requests without an id
 class CollectionHandler(access.BaseHandler):
+    @tornado.web.asynchronous
     def get(self, db_name, collection_name):
         '''Handle queries'''
         if not self.checkAccessKey(db_name, collection_name, access.Read):
@@ -157,7 +158,7 @@ class CollectionHandler(access.BaseHandler):
         collection = self.mongo_conn[db_name][collection_name]
 
         # check for a query
-        spec = {}
+        findSpec = {}
         if 'mq' in self.request.arguments:
             q = self.request.arguments['mq'][0]
             # pass an arbitrary query into mongo, the query is json encoded and
@@ -171,18 +172,13 @@ class CollectionHandler(access.BaseHandler):
             except ValueError, e:
                 raise HTTPError(400, unicode(e));
             # convert to format expected by mongo
-            spec = TranslateQuery(q)
-
-        cursor = collection.find(spec)
+            findSpec = TranslateQuery(q)
 
         # check for a sorting request
+        sortSpec = []
         if 'ms' in self.request.arguments:
-            sortSpec = []
             for s in self.request.arguments['ms'][0].split(','):
                 sortSpec.append((s[1:], { '+':pymongo.ASCENDING, '-':pymongo.DESCENDING }[s[0]]))
-            cursor = cursor.sort(sortSpec)
-
-        Nitems = cursor.count()
 
         # see how much we are to send
         r = re.compile(r'items=(\d+)-(\d+)').match(self.request.headers.get('Range', ''))
@@ -191,15 +187,33 @@ class CollectionHandler(access.BaseHandler):
             stop = int(r.group(2))
         else:
             start = 0
-            stop = min(10, Nitems)
+            stop = 10
+        
+        # hand off to the worker thread to do the possibly slow db access
+        self.run_async(self._callback, self._worker, collection, findSpec, sortSpec, start, stop)
+
+    def _worker(self, collection, findSpec, sortSpec, start, stop):
+        '''Do just the db query in a thread, the hand off to the callback to write the results'''
+        cursor = collection.find(findSpec)
+        if sortSpec:
+            cursor = cursor.sort(sortSpec)
+        Nitems = cursor.count()
         cursor = cursor.skip(start).limit(stop-start+1)
 
+        rows = list(cursor)
+        return (rows, start, stop, Nitems)
+    
+    def _callback(self, result, *args):
+        '''Report the async worker's results'''
+        rows, start, stop, Nitems = result
+        
         # send the result
         self.set_header('Content-range', 'items %d-%d/%d' % (start,stop,Nitems))
-        s = json.dumps(list(cursor), default=pymongo.json_util.default)
+        s = json.dumps(rows, default=pymongo.json_util.default)
         self.set_header('Content-length', len(s))
         self.set_header('Content-type', 'application/json')
         self.write(s)
+        self.finish()
 
     def post(self, db_name, collection_name):
         '''Create a new item and return the single item not an array'''
