@@ -287,19 +287,20 @@ class TestHandler(access.BaseHandler):
         
         self.write('ok')
         
-def generate_secret():
+def generate_secret(seed):
     '''Generate the secret string for hmac'''
+    random.seed(seed)
     return ''.join(random.choice(string.letters + string.digits + string.punctuation)
                    for i in range(100))
 
 def run(port=8888, threads=4, debug=False, static=False, pid=None, 
-        mongo_host='127.0.0.1', mongo_port=27017):
+        mongo_host='127.0.0.1', mongo_port=27017, seed=0):
     if pid is not None:
         # launch as a daemon and write the pid file
         import daemon
         daemon.daemonize(pid)
     kwargs = {
-        'cookie_secret': generate_secret(),
+        'cookie_secret': generate_secret(seed),
         'debug': debug,
         'thread_count': threads,
         'mongo_conn' : pymongo.Connection(mongo_host, mongo_port)
@@ -359,6 +360,8 @@ def run_from_args():
         default=False, help="enable Tornado sharing of the jsonic root folder (default=false)")
     parser.add_option("--pid", dest="pid", default=None, type="str",
         help="launch as a daemon and write to the given pid file (default=None)")
+    parser.add_option("--seed", dest="seed", default=0, type="int",
+        help="seed for the random number generator")
     (options, args) = parser.parse_args()
     if options.generate:
         vals = generate_sample_data(options.generate, options.mongohost, 
@@ -366,7 +369,7 @@ def run_from_args():
         #print 'Generated %d random items in db: %s, collection: %s' % vals
     # run the server
     run(options.port, options.workers, options.debug, options.static, 
-        options.pid, options.mongohost, options.mongoport)
+        options.pid, options.mongohost, options.mongoport, options.seed)
 
 if __name__ == "__main__":
     run_from_args()

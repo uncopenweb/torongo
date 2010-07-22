@@ -19,13 +19,9 @@ import jsonschema
 import sys
 import httplib
 import traceback
+import re
 
-# seed the random number generator so all instances get the same key
-stat = os.stat(__file__)
-seed = stat.st_mtime * os.getppid()
-random.seed(seed)
-Key = ''.join(random.choice(string.letters + string.digits + string.punctuation) 
-              for i in range(99))
+localIP = re.compile(r'127\.0\.[01]\.1$')
 
 # mode names
 Create = set('c')
@@ -38,10 +34,6 @@ List = set('L')
 modeSet = Create | Read | Update | Delete | DropCollection | List
 
 KeyDuration = timedelta(1, 0) # one day
-
-def makeSignature(db, collection, user, modebits, timebits):
-    signature = hmac.new(Key, db + collection + modebits + timebits, hashlib.sha1).hexdigest()
-    return signature
 
 def matchIP(ip, pattern):
     if ip == pattern:
@@ -79,21 +71,28 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         if 'X-Real-Ip' not in self.request.headers:
             print >>sys.stderr, "X-Real-Ip not found"
             return False
-        if 'X-Uow-User' not in self.request.headers:
+        rip = self.request.headers['X-Real-IP']
+        if 'X-Uow-User' not in self.request.headers and not localIP.match(rip):
             print >>sys.stderr, "X-Uow-User not found"
             print >>sys.stderr, self.request.headers
             return False
-        rip = self.request.headers['X-Real-IP']
         if 'ips' in info:
             for ip in info['ips']:
                 if matchIP(rip, ip):
-                    print >>sys.stderr, "IP OK"
+                    #print >>sys.stderr, "IP OK"
                     return True
             print >>sys.stderr, "IP not in list"
             return False
         else:
             print >>sys.stderr, "OK"
             return True   
+
+    def makeSignature(self, db, collection, user, modebits, timebits):
+        self.require_setting("cookie_secret", "secure cookies")
+        signature = hmac.new(self.application.settings["cookie_secret"], 
+                             db + collection + modebits + timebits, 
+                             hashlib.sha1).hexdigest()
+        return signature
 
     def makeAccessKey(self, dbName, collection, modestring):
         '''Create an access key for a database/collection pair with the requested mode
@@ -109,7 +108,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         db = self.mongo_conn[dbName]
         # get the names of all the collecitons
         collections = db.collection_names()
-        print >>sys.stderr, 'collections', collections
+        #print >>sys.stderr, 'collections', collections
         # check if this is a controlled db
         if (not collections or                      # empty db
             'AccessUsers' not in collections or     # AccessUsers collection absent
@@ -145,11 +144,11 @@ class BaseHandler(mongo_util.MongoRequestHandler):
                         perms = { 'role': role, 'collection': collection, 'permission': '' }
             # allowed is the intersection between requested and permitted
             allowed_mode = requested_mode & set(perms['permission'])
-        print >>sys.stderr, "allowed mode", allowed_mode
+        #print >>sys.stderr, "allowed mode", allowed_mode
         modebits = ''.join(allowed_mode)
         timebits = '%x' % int(datetime.now().strftime('%y%m%d%H%M%S'))
         # construct the signed result
-        key = '%s-%s-%s' % (modebits, timebits, makeSignature(dbName, collection, user, modebits,
+        key = '%s-%s-%s' % (modebits, timebits, self.makeSignature(dbName, collection, user, modebits,
                             timebits))
         return key
 
@@ -166,7 +165,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
             self.checkAccessKeyMessage = 'bad authorization header'
             return False
         user = self.get_current_user()
-        if signature != makeSignature(db, collection, user, modebits, timebits):
+        if signature != self.makeSignature(db, collection, user, modebits, timebits):
             self.checkAccessKeyMessage = 'invalid signature'
             return False
         timebits = str(int(timebits, 16))
@@ -183,17 +182,17 @@ class BaseHandler(mongo_util.MongoRequestHandler):
     def validateSchema(self, db, collection, item):
         schemas = self.mongo_conn['_Admin']['Schemas']
         info = schemas.find_one({ 'db': db, 'collection': collection })
-        print >>sys.stderr, 'db=', db, 'collection=', collection, 'item', item, 'info', info
+        #print >>sys.stderr, 'db=', db, 'collection=', collection, 'item', item, 'info', info
         if not info:
-            print >>sys.stderr, "No schema"
+            #print >>sys.stderr, "No schema"
             return
-        print >>sys.stderr, "validating"
+        #print >>sys.stderr, "validating"
         try:
             jsonschema.validate(item, info['schema'])
         except ValueError, e:
-            print >>sys.stderr, "failed", e.message
+            #print >>sys.stderr, "failed", e.message
             raise HTTPError(403, e.message)
-        print >>sys.stderr, "OK"
+        #print >>sys.stderr, "OK"
         
     def get_error_html(self, status_code, **kwargs):
         '''Override their error message to give developers more info'''
