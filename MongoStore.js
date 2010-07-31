@@ -10,6 +10,7 @@ dojo.provide('uow.data.MongoStore');
 dojo.require('dojox.rpc.Service');
 dojo.require('dojox.rpc.Rest');
 dojo.require('dojox.data.JsonRestStore');
+dojo.require('dojo.io.iframe');
 
 dojo.declare('uow.data.MongoStore', [dojox.data.JsonRestStore], {
     constructor: function(options){
@@ -17,6 +18,7 @@ dojo.declare('uow.data.MongoStore', [dojox.data.JsonRestStore], {
         if (options.accessKey) {
             var _getRequest = this.service._getRequest;
             var myKey = options.accessKey;
+            this.accessKey = myKey;
             var myGetRequest = function(id, args) {
                 var request = _getRequest(id, args);
                 request.headers['Authorization'] = myKey;
@@ -41,6 +43,15 @@ dojo.declare('uow.data.MongoStore', [dojox.data.JsonRestStore], {
         args.query = qs;
         // hand off to the method in JsonRestStore
         return this.inherited(arguments);
+    },
+    upload: function(args) {
+        // upload a file using io.iframe.send
+        // you need to set form, load, and error
+        args.url = '/upload/';
+        args.method = 'post';
+        args.content = { 'Authorization': this.accessKey };
+        args.handleAs = 'json';
+        dojo.io.iframe.send(args);
     }
 
     // @todo add methods for dealing with collections
