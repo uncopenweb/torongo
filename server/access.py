@@ -30,8 +30,9 @@ Update = set('u')
 Delete = set('d')
 DropCollection = set('D')
 List = set('L')
+Upload = set('U')
 
-modeSet = Create | Read | Update | Delete | DropCollection | List
+modeSet = Create | Read | Update | Delete | DropCollection | List | Upload
 
 KeyDuration = timedelta(1, 0) # one day
 
@@ -152,10 +153,10 @@ class BaseHandler(mongo_util.MongoRequestHandler):
                             timebits))
         return key
 
-    def checkAccessKey(self, db, collection, mode):
+    def checkAccessKey(self, db, collection, mode, key=None):
         '''Validate an access key'''
         self.checkAccessKeyMessage = ''
-        key = self.request.headers.get('Authorization', None)
+        key = key or self.request.headers.get('Authorization', None)
         if not key:
             self.checkAccessKeyMessage = 'missing authorization header'
             return None
