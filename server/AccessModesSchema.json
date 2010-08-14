@@ -14,11 +14,20 @@
             "title": "Role",
             "maxLength": 20
         },
-        "mode": {
+        "permission": {
             "type": "string",
             "description": "Mode string [crudDL]*.",
             "title": "Modes",
             "maxLength": 20
+        },
+        "fields": {
+            "type": "array",
+            "description": "List of fields to return or empty for all fields.",
+            "title": "Fields",
+            "items": {
+                "type": "string",
+                "description": "Field name from the collection."
+            }
         }
     }
 }
