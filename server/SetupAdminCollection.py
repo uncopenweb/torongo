@@ -27,6 +27,10 @@ rolodex = {
     'type': 'object',
     'description': 'A rolodex object',
     'properties': {
+        '_id': {
+            'type': 'string',
+            'maxLength': 64,
+        },
         'firstName': {
             'type': 'string',
             'maxLength': 25,
@@ -35,26 +39,37 @@ rolodex = {
             'type': 'string',
             'maxLength': 25,
         },
-    }
+    },
+    'additionalProperties': False,
 }
 
 status = {
     'type': 'object',
     'description': 'A status object',
     'properties': {
+        '_id': {
+            'type': 'string',
+            'maxLength': 64,
+        },
         'dt': { 'type': 'string',
                 'maxLength': 25 },
         'from': { 'type': 'string',
                   'maxLength': 40 }
-    }
+    },
+    'additionalProperties': False,
 }
 
 test = {
     'type': 'object',
     'properties': {
+        '_id': {
+            'type': 'string',
+            'maxLength': 64,
+        },
         'word': { 'type': 'string', 'maxLength': 25 },
         'value': { 'type': 'integer' },
-    }
+    },
+    'additionalProperties': False,
 }
 
 AccessUsersSchema = json.load(file('AccessUsersSchema.json', 'r'))
@@ -80,7 +95,6 @@ db = conn['catalog']
 db.drop_collection('AccessUsers')
 cl = db['AccessUsers']
 cl.insert({ 'user': 'gary.bishop.unc@gmail.com', 'role': 'admin', '_id': newId() })
-cl.insert({ 'user': 'anonymous', 'role': 'anonymous', '_id': newId() })
 
 db.drop_collection('AccessModes')
 cl = db['AccessModes']
@@ -89,6 +103,18 @@ cl.insert({ 'role': 'anonymous', 'collection': 'rolodex', 'permission': 'rc', '_
 cl.insert({ 'role': '_ANY_', 'collection': 'status', 'permission': 'c', '_id': newId() })
 cl.insert({ 'role': 'admin', 'collection': 'AccessUsers', 'permission': 'crud', '_id': newId() })
 cl.insert({ 'role': 'admin', 'collection': 'AccessModes', 'permission': 'crud', '_id': newId() })
+
+db = conn['media']
+db.drop_collection('AccessUsers')
+cl = db['AccessUsers']
+cl.insert({ 'user': 'gary.bishop.unc@gmail.com', 'role': 'admin', '_id': newId() })
+
+db.drop_collection('AccessModes')
+cl = db['AccessModes']
+cl.insert({ 'role': 'admin', 'collection': 'audio', 'permission': 'crudDLU', '_id': newId() })
+cl.insert({ 'role': 'admin', 'collection': 'image', 'permission': 'crudDLU', '_id': newId() })
+cl.insert({ 'role': 'identified', 'collection': 'audio', 'permission': 'rU', '_id': newId() })
+cl.insert({ 'role': 'identified', 'collection': 'image', 'permission': 'rU', '_id': newId() })
 
 # roles for test
 db = conn['test']
@@ -101,6 +127,17 @@ cl = db['AccessModes']
 cl.insert({ 'role': 'admin', 'collection': '_ANY_', 'permission': 'crudDL', '_id': newId() })
 cl.insert({ 'role': 'anonymous', 'collection': 'test', 'permission': 'r', '_id': newId() })
 
+# roles for bigwords
+db = conn['BigWords']
+db.drop_collection('AccessUsers')
+cl = db['AccessUsers']
+cl.insert({ 'user': 'gary.bishop.unc@gmail.com', 'role': 'admin', '_id': newId() })
+cl.insert({ 'user': 'duncan.lewis11@gmail.com', 'role': 'admin', '_id': newId() })
+cl.insert({ 'user': 'anonymous', 'role': 'anonymous', '_id': newId() })
+db.drop_collection('AccessModes')
+cl = db['AccessModes']
+cl.insert({ 'role': 'admin', 'collection': '_ANY_', 'permission': 'crudDL', '_id': newId() })
+cl.insert({ 'role': 'anonymous', 'collection': '_ANY_', 'permission': 'crud', '_id': newId() })
 
 # clean out the default collections
 db.drop_collection('rolodex')
