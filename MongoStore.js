@@ -52,7 +52,32 @@ dojo.declare('uow.data.MongoStore', [dojox.data.JsonRestStore], {
         args.content = { 'Authorization': this.accessKey };
         args.handleAs = 'json';
         dojo.io.iframe.send(args);
+    },
+    getValue: function(item, property, defaultValue){
+        // taken from http://bugs.dojotoolkit.org/attachment/ticket/7175/BeanStore.js
+        // summary:
+        //    Gets the value of an item's 'property', supports dot-notation
+        //
+        //    item: /* object */
+        //    property: /* string */
+        //        property to look up value for    
+        //    defaultValue: /* string */
+        //        the default value
+        
+        if (property.indexOf(".") > 0) { //dot-notation
+            var matches = property.match(/(\w+)\.([\w\.]+)/);
+            if (matches && matches.length > 2) {
+                var association = this.getValue(item, matches[1]);
+                if (association) {
+                    return this.getValue(association, matches[2]);
+                }
+            }
+        }
+        else {
+            return this.inherited(arguments);
+        }
     }
+
 
     // @todo add methods for dealing with collections
 });
