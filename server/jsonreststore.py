@@ -10,6 +10,7 @@ import tornado.web
 from tornado.web import HTTPError
 import pymongo
 import pymongo.json_util
+
 import mongo_util
 import os
 import json
@@ -136,6 +137,7 @@ class DatabaseHandler(access.BaseHandler):
         # send the result
         self.set_header('Content-range', 'items %d-%d/%d' % (start,stop,Nitems))
         s = json.dumps(result, default=pymongo.json_util.default)
+        s = s.replace('"_ref":', '"$ref":') # restore $ref
         self.set_header('Content-length', len(s))
         self.set_header('Content-type', 'application/json')
         self.write(s)
@@ -194,6 +196,7 @@ class CollectionHandler(access.BaseHandler):
 
     def _worker(self, collection, findSpec, sortSpec, start, stop):
         '''Do just the db query in a thread, the hand off to the callback to write the results'''
+        # restrict fields here
         cursor = collection.find(findSpec)
         if sortSpec:
             cursor = cursor.sort(sortSpec)
@@ -210,6 +213,7 @@ class CollectionHandler(access.BaseHandler):
         # send the result
         self.set_header('Content-range', 'items %d-%d/%d' % (start,stop,Nitems))
         s = json.dumps(rows, default=pymongo.json_util.default)
+        s = s.replace('"_ref":', '"$ref":') # restore $ref
         self.set_header('Content-length', len(s))
         self.set_header('Content-type', 'application/json')
         self.write(s)
@@ -223,18 +227,22 @@ class CollectionHandler(access.BaseHandler):
         collection = self.mongo_conn[db_name][collection_name]
 
         try:
-            item = json.loads(self.request.body, object_hook=pymongo.json_util.object_hook)
+            s = self.request.body
+            s = s.replace('"$ref":', '"_ref":') # hide $ref
+            item = json.loads(s, object_hook=pymongo.json_util.object_hook)
         except ValueError, e:
             raise HTTPError(400, unicode(e));
 
-        self.validateSchema(db_name, collection_name, item)
-        
         id = newId()
         item['_id'] = id
+        
+        self.validateSchema(db_name, collection_name, item)
+        
         collection.insert(item, safe=True)
         # this path should get encoded only one place, fix this
         self.set_header('Location', '/data/%s/%s/%s' % (db_name, collection_name, id))
         s = json.dumps(item, default=pymongo.json_util.default)
+        s = s.replace('"_ref":', '"$ref":') # restore $ref
         self.set_header('Content-length', len(s))
         self.set_header('Content-type', 'application/json')
         self.write(s)
@@ -248,8 +256,10 @@ class ItemHandler(access.BaseHandler):
         
         collection = self.mongo_conn[db_name][collection_name]
         
+        # restrict fields here
         item = collection.find_one({'_id':id})
         s = json.dumps(item, default=pymongo.json_util.default)
+        s = s.replace('"_ref":', '"$ref":') # restore $ref
         self.set_header('Content-length', len(s))
         self.set_header('Content-type', 'application/json')
         self.write(s)
@@ -261,11 +271,14 @@ class ItemHandler(access.BaseHandler):
         
         collection = self.mongo_conn[db_name][collection_name]
         try:
-            new_item = json.loads(self.request.body, object_hook=pymongo.json_util.object_hook)
+            s = self.request.body
+            s = s.replace('"$ref":', '"_ref":') # restore $ref
+            new_item = json.loads(s, object_hook=pymongo.json_util.object_hook)
         except ValueError, e:
             raise HTTPError(400, unicode(e));
+        # if limited fields were given to this user, merge others in here
         self.validateSchema(db_name, collection_name, new_item)
-        collection.save(new_item, safe=True)
+        collection.update({ '_id': new_item['_id'] }, new_item, upsert=False, safe=True)
 
     def delete(self, db_name, collection_name, id):
         '''Delete an item, what should I return?'''
