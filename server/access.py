@@ -145,6 +145,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
                         perms = { 'role': role, 'collection': collection, 'permission': '' }
             # allowed is the intersection between requested and permitted
             allowed_mode = requested_mode & set(perms['permission'])
+            # include field restrictions here
         #print >>sys.stderr, "allowed mode", allowed_mode
         modebits = ''.join(allowed_mode)
         timebits = '%x' % int(datetime.now().strftime('%y%m%d%H%M%S'))
@@ -250,6 +251,14 @@ class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
 '''
             self.write(resp)
             self.finish()
+        elif id == '/user':
+            user = self.get_current_user()
+            s = json.dumps(user)
+            self.set_header('Content-length', len(s))
+            self.set_header('Content-type', 'application/json')
+            self.write(s)
+            self.finish()
+
         else:
             #print 'sending response'
             # wrap up the authorization
