@@ -156,19 +156,19 @@ function DropTest(description, mode) {
                                     ok(D && dojo.indexOf(items, 'test') == -1, 'test collection is gone');
                                     start();
                                 },
-                                onError: function() {
+                                onError: function(res) {
                                     ok(!L, 'second fetch fail');
                                     start();
                                 }
                             });
                         },
-                        onError: function() {
+                        onError: function(res) {
                             ok(!D, 'save fail');
                             start();
                         }
                     });
                 },
-                onError: function() {
+                onError: function(res) {
                     ok(!L, 'first fetch fail');
                     start();
                 }
@@ -206,8 +206,9 @@ function Update(mode, valid) {
         var src = valid ? goodItem : badItem;
         function onFetchComplete(items, request) {
             // we've got the items, not modify the first
-            db.setValue(items[0], 'word', src.word);
-            db.setValue(items[0], 'value', src.value);
+            var item = items[0];
+            db.changing(item);
+            item = dojo.mixin(item, src);
             db.save( {
                 'onComplete': function() {
                     ok(pass, 'update should succeed');
@@ -301,8 +302,7 @@ function Delete(mode) {
     };
 }
 
-function main() {
-    var user = uow.getUser();
+function main1(user) {
     var id = user.email;
     loggedIn = id !== null;
     dojo.byId('qunit-header').innerHTML = 'UOW Unit Tests by ' + id;
@@ -325,11 +325,13 @@ function main() {
             validateFetch('foo should be present', 'foo', 0);
         }
     });
+    
     // test read
     dojo.forEach(modes, function(mode) {
         var msg = dojo.replace('Read with mode {0} loggedIn == {1}', [ mode, loggedIn ]);
         doTest(msg, mode, Read(mode));
     });
+    
     // test create and update
     dojo.forEach(['Create', 'Update'], function(func) {
         dojo.forEach(modes, function(mode) {
@@ -352,6 +354,13 @@ function main() {
             });
         });
     });
+    
+    start();
+
+}
+
+function main() {
+    uow.getUser().addCallback(main1);
 }
 
 dojo.ready(main);
