@@ -28,9 +28,12 @@ dojo.declare('uow.data.MongoStore', [dojox.data.JsonRestStore], {
         }
     },
     _doQuery: function(args) {
-        //console.log('doQuery', args);
         // pack the query into one parameter with the query args json and uri encoded
         // undefined won't json decode, make it an empty query
+        // shallow copy of args so we don't screw up what got handed in
+        var Args = {};
+        dojo.mixin(Args, args);
+        args = Args;
         var qs = {};
         if (args.query && typeof(args.query) != 'undefined') {
             qs.mq = encodeURIComponent(dojo.toJson(args.query));
