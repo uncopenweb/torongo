@@ -1,4 +1,5 @@
 {
+    "title": "AccessUsers",
     "description": "Map Users to Roles",
     "type": "object",
     "properties": {
@@ -12,7 +13,8 @@
             "type": "string",
             "description": "Role for this user.",
             "title": "Role",
-            "maxLength": 20
+            "maxLength": 20,
+            "enum": [ "admin", "author", "user" ]
         }
     }
 }

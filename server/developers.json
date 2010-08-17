@@ -1,0 +1,14 @@
+[ 
+  { "user": "gary.bishop.unc@gmail.com",
+    "role": "superuser" },
+  { "user": "duncan.lewis11@gmail.com",
+    "role": "developer" },
+  { "user": "parente@gmail.com",
+    "role": "developer" },
+  { "user": "overman.robert@gmail.com",
+    "role": "developer" },
+  { "user": "pbouchon90@gmail.com",
+    "role": "developer" },
+  { "user": "beccacrabb@gmail.com",
+    "role": "developer" }
+]

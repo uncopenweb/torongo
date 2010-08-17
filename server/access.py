@@ -1,9 +1,7 @@
 # access control for our JsonRestStore
 
-import random
 import hmac
 import hashlib
-import string
 from datetime import datetime, timedelta
 import tornado.web
 from tornado.web import HTTPError
@@ -12,7 +10,6 @@ import pymongo
 import pymongo.json_util
 import mongo_util
 import json
-import os
 import socket
 import struct
 import jsonschema
@@ -36,6 +33,8 @@ modeSet = Create | Read | Update | Delete | DropCollection | List | Upload
 
 KeyDuration = timedelta(1, 0) # one day
 
+AdminDbName = 'Admin'
+
 def matchIP(ip, pattern):
     if ip == pattern:
         return True
@@ -58,16 +57,18 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         #print 'get_current_user', result
         return result
         
-    def isDeveloper(self, user=None):
+    def isDeveloper(self, user=None, role=None):
         '''Return true for local developers'''
         if user is None:
             user = self.get_current_user()
+        
+        if role is None:
+            role = self.getRole(user)
+        
         # this should probably be disabled on the production server
         # note the db name _Admin is not accessible from this web interface
-        devel = self.mongo_conn['_Admin']['Developers']
-        info = devel.find_one({ 'user': user['email'] })
-        if not info:
-            print >>sys.stderr, user, "not in developers"
+        if role not in [ 'superuser', 'developer' ]:
+            print >>sys.stderr, user, "role not developer"
             return False
         if 'X-Real-Ip' not in self.request.headers:
             print >>sys.stderr, "X-Real-Ip not found"
@@ -77,16 +78,8 @@ class BaseHandler(mongo_util.MongoRequestHandler):
             print >>sys.stderr, "X-Uow-User not found"
             print >>sys.stderr, self.request.headers
             return False
-        if 'ips' in info:
-            for ip in info['ips']:
-                if matchIP(rip, ip):
-                    #print >>sys.stderr, "IP OK"
-                    return True
-            print >>sys.stderr, "IP not in list"
-            return False
-        else:
-            print >>sys.stderr, "OK"
-            return True   
+        #print >>sys.stderr, "OK"
+        return True   
 
     def makeSignature(self, db, collection, user, modebits, timebits):
         self.require_setting("cookie_secret", "secure cookies")
@@ -94,6 +87,32 @@ class BaseHandler(mongo_util.MongoRequestHandler):
                              db + collection + modebits + timebits, 
                              hashlib.sha1).hexdigest()
         return signature
+        
+    def getRole(self, user = None, db = None):
+        if user is None:
+            user = self.get_current_user()
+            
+        # connect to the Admin db
+        if db is None:
+            db = self.mongo_conn[AdminDbName]
+        
+        # fetch a role for this user
+        Developers = db['Developers']
+        info = Developers.find_one( { 'user': user['email'] } )
+        if info:
+            role = info['role']
+        else:
+            AccessUsers = db['AccessUsers']
+            info = AccessUsers.find_one( { 'user': user['email'] } )
+            if info:
+                role = info['role']
+            elif user['email'] is None: # not logged in
+                role = 'anonymous'
+            else:
+                role = 'identified' # logged in but not specifically given a role
+            
+        return role
+
 
     def makeAccessKey(self, dbName, collection, modestring):
         '''Create an access key for a database/collection pair with the requested mode
@@ -105,47 +124,36 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         # restrict requested modes to legal ones
         requested_mode = set(modestring) & modeSet
         
-        # connect to the db
-        db = self.mongo_conn[dbName]
-        # get the names of all the collecitons
-        collections = db.collection_names()
-        #print >>sys.stderr, 'collections', collections
-        # check if this is a controlled db
-        if (not collections or                      # empty db
-            'AccessUsers' not in collections or     # AccessUsers collection absent
-            'AccessModes' not in collections):      # AccessModes collection absent
-            if not self.isDeveloper(user):
-                allowed_mode = set() # non-developers can't touch uncontrolled db's
-            else:
-                allowed_mode = requested_mode # developers can do whatever they request
+        # connect to the Admin db
+        db = self.mongo_conn[AdminDbName]
+        
+        role = self.getRole(user, db)
+        
+        # fetch permissions for this role
+        AccessModes = db['AccessModes']
+        # look for the role, db, collection triple
+        perms = AccessModes.find_one( { 'role': role, 
+                                        'database': dbName, 
+                                        'collection': collection } )
 
-        else: # controlled db
-            # fetch a role for this user
-            AccessUsers = db['AccessUsers']
-            info = AccessUsers.find_one( { 'user': user['email'] } )
-            if info:
-                role = info['role']
-            elif user['email'] is None: # not logged in
-                role = 'anonymous'
+        if dbName == 'Admin' and collection == 'Developers':
+            if role == "superuser":
+                permission = requested_mode
             else:
-                role = 'identified' # logged in but not specifically given a role
-
-            # fetch permissions for this role
-            AccessModes = db['AccessModes']
-            # look for the role, collection pair
-            perms = AccessModes.find_one( { 'role': role, 'collection': collection } )
-            if not perms:
-                # look for the role for ANY collection
-                perms = AccessModes.find_one( { 'role': role, 'collection': '_ANY_' } )
-                if not perms:
-                    # look for ANY role for the collection
-                    perms = AccessModes.find_one( { 'role': '_ANY_', 'collection': collection } )
-                    if not perms:
-                        # nothing allowed
-                        perms = { 'role': role, 'collection': collection, 'permission': '' }
-            # allowed is the intersection between requested and permitted
-            allowed_mode = requested_mode & set(perms['permission'])
-            # include field restrictions here
+                permission = ''
+                
+        elif perms:
+            permission = perms['permission']
+            
+        elif self.isDeveloper(user, role):
+            permission = requested_mode # developers get their wish
+            
+        else:
+            permission = '' # others get nothing
+                
+        # allowed is the intersection between requested and permitted
+        allowed_mode = requested_mode & permission
+        # include field restrictions here
         #print >>sys.stderr, "allowed mode", allowed_mode
         modebits = ''.join(allowed_mode)
         timebits = '%x' % int(datetime.now().strftime('%y%m%d%H%M%S'))
@@ -182,15 +190,15 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         return result
         
     def validateSchema(self, db, collection, item):
-        schemas = self.mongo_conn['_Admin']['Schemas']
-        info = schemas.find_one({ 'db': db, 'collection': collection })
+        schemas = self.mongo_conn[AdminDbName]['Schemas']
+        info = schemas.find_one({ 'database': db, 'collection': collection })
         #print >>sys.stderr, 'db=', db, 'collection=', collection, 'item', item, 'info', info
         if not info:
             #print >>sys.stderr, "No schema"
             return
         #print >>sys.stderr, "validating"
         try:
-            jsonschema.validate(item, info['schema'])
+            jsonschema.validate(item, json.loads(info['schema']))
         except ValueError, e:
             #print >>sys.stderr, "failed", e.message
             raise HTTPError(403, e.message)

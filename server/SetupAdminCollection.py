@@ -1,144 +1,136 @@
-'''Initialize the _Admin db for testing'''
+'''Initialize the Admin db for testing'''
 
 import pymongo
 import json
+import access
+import optparse
+import sys
+import re
 
 def newId():
     '''Use the mongo ID mechanism but convert them to strings'''
-    # Not sure why I prefer the strings, they sure look better than the objects
     return str(pymongo.objectid.ObjectId())
+    
+def insert(collection, item):
+    if '_id' not in item:
+        item['_id'] = newId()
+    collection.insert(item, safe=True)
+    
+def replace(collection, item, **spec):
+    if not spec:
+        return insert(collection, item)
+        
+    old = collection.find(spec)
+    count = old.count()
+    if count > 1:
+        raise 'duplicates for %s' % spec
+    if count == 0:
+        return insert(collection, item)
+    collection.update({'_id': old['_id']}, item, safe=True);
 
 conn = pymongo.Connection('localhost', port=27000)
 
-# setup the Developers list
-db = conn['_Admin']
-db.drop_collection('Developers')
-cl = db['Developers']
+db = conn[access.AdminDbName]
 
-for id in [ 'gary.bishop.unc@gmail.com',
-            'duncan.lewis11@gmail.com',
-            'parente@gmail.com',
-          ]:
-    item = { 'user': id, '_id': newId() }
-    cl.insert(item)
+# setup users
+db.drop_collection('Developers')
+userRoles = json.load(file('developers.json', 'r'))
+DE = db['Developers']
+for userRole in userRoles:
+    insert(DE, userRole)
+    
+# setup users
+db.drop_collection('AccessUsers')
+userRoles = json.load(file('users.json', 'r'))
+AU = db['AccessUsers']
+for userRole in userRoles:
+    insert(AU, userRole)
+    
+# setup modes
+db.drop_collection('AccessModes')
+modes = json.load(file('modes.json', 'r'))
+AM = db['AccessModes']
+for mode in modes:
+    insert(AM, mode)
 
 # rolodex schema
-rolodex = {
-    'type': 'object',
-    'description': 'A rolodex object',
-    'properties': {
-        '_id': {
-            'type': 'string',
-            'maxLength': 64,
+rolodex = '''
+{
+    "type": "object",
+    "description": "A rolodex object",
+    "properties": {
+        "_id": {
+            "type": "string",
+            "maxLength": 64
         },
-        'firstName': {
-            'type': 'string',
-            'maxLength': 25,
+        "firstName": {
+            "type": "string",
+            "maxLength": 25
         },
-        'lastName': {
-            'type': 'string',
-            'maxLength': 25,
-        },
+        "lastName": {
+            "type": "string",
+            "maxLength": 25
+        }
     },
-    'additionalProperties': False,
+    "additionalProperties": false
 }
+'''
 
-status = {
-    'type': 'object',
-    'description': 'A status object',
-    'properties': {
-        '_id': {
-            'type': 'string',
-            'maxLength': 64,
+status = '''{
+    "type": "object",
+    "description": "A status object",
+    "properties": {
+        "_id": {
+            "type": "string",
+            "maxLength": 64
         },
-        'dt': { 'type': 'string',
-                'maxLength': 25 },
-        'from': { 'type': 'string',
-                  'maxLength': 40 }
+        "dt": { "type": "string",
+                "maxLength": 25 },
+        "from": { "type": "string",
+                  "maxLength": 40 }
     },
-    'additionalProperties': False,
-}
+    "additionalProperties": false
+}'''
 
-test = {
-    'type': 'object',
-    'properties': {
-        '_id': {
-            'type': 'string',
-            'maxLength': 64,
+test = '''{
+    "type": "object",
+    "properties": {
+        "_id": {
+            "type": "string",
+            "maxLength": 64
         },
-        'word': { 'type': 'string', 'maxLength': 25 },
-        'value': { 'type': 'integer' },
+        "word": { "type": "string", "maxLength": 25 },
+        "value": { "type": "integer" }
     },
-    'additionalProperties': False,
-}
+    "additionalProperties": false
+}'''
 
-AccessUsersSchema = json.load(file('AccessUsersSchema.json', 'r'))
-AccessModesSchema = json.load(file('AccessModesSchema.json', 'r'))
+AccessUsersSchema = file('AccessUsersSchema.json', 'r').read()
+AccessModesSchema = file('AccessModesSchema.json', 'r').read()
+DevelopersSchema = file('DevelopersSchema.json', 'r').read()
+
+def compact(j):
+    try:
+        json.loads(j)
+    except:
+        print 'bad json'
+        raise
+    return j # re.sub(r'\s+', ' ', j)
 
 # setup the Schemas
 db.drop_collection('Schemas')
-cl = db['Schemas']
-cl.insert( { 'db': 'catalog', 'collection': 'rolodex', '_id': newId(),
-             'schema': rolodex } )
-cl.insert( { 'db': 'catalog', 'collection': 'status', '_id': newId(),
-             'schema': status } )
-cl.insert( { 'db': 'catalog', 'collection': 'AccessUsers', '_id': newId(),
-             'schema': AccessUsersSchema } )
-cl.insert( { 'db': 'catalog', 'collection': 'AccessModes', '_id': newId(),
-             'schema': AccessModesSchema } )
-cl.insert( { 'db': 'test', 'collection': 'test', '_id': newId(),
-             'schema': test });
+sc = db['Schemas']
+insert(sc, { 'database': 'catalog', 'collection': 'rolodex',
+             'schema': compact(rolodex) } )
+insert(sc, { 'database': 'catalog', 'collection': 'status',
+             'schema': compact(status) } )
+insert(sc, { 'database': 'Admin', 'collection': 'AccessUsers',
+             'schema': compact(AccessUsersSchema) } )
+insert(sc, { 'database': 'Admin', 'collection': 'AccessModes',
+             'schema': compact(AccessModesSchema) } )
+insert(sc, { 'database': 'Admin', 'collection': 'Developers',
+             'schema': compact(DevelopersSchema) } )
+insert(sc, { 'database': 'test', 'collection': 'test',
+             'schema': compact(test) });
 
 
-# setup roles
-db = conn['catalog']
-db.drop_collection('AccessUsers')
-cl = db['AccessUsers']
-cl.insert({ 'user': 'gary.bishop.unc@gmail.com', 'role': 'admin', '_id': newId() })
-
-db.drop_collection('AccessModes')
-cl = db['AccessModes']
-cl.insert({ 'role': 'admin', 'collection': 'rolodex', 'permission': 'crudDL', '_id': newId() })
-cl.insert({ 'role': 'anonymous', 'collection': 'rolodex', 'permission': 'rc', '_id': newId() })
-cl.insert({ 'role': '_ANY_', 'collection': 'status', 'permission': 'c', '_id': newId() })
-cl.insert({ 'role': 'admin', 'collection': 'AccessUsers', 'permission': 'crud', '_id': newId() })
-cl.insert({ 'role': 'admin', 'collection': 'AccessModes', 'permission': 'crud', '_id': newId() })
-
-db = conn['media']
-db.drop_collection('AccessUsers')
-cl = db['AccessUsers']
-cl.insert({ 'user': 'gary.bishop.unc@gmail.com', 'role': 'admin', '_id': newId() })
-
-db.drop_collection('AccessModes')
-cl = db['AccessModes']
-cl.insert({ 'role': 'admin', 'collection': 'audio', 'permission': 'crudDLU', '_id': newId() })
-cl.insert({ 'role': 'admin', 'collection': 'image', 'permission': 'crudDLU', '_id': newId() })
-cl.insert({ 'role': 'identified', 'collection': 'audio', 'permission': 'rU', '_id': newId() })
-cl.insert({ 'role': 'identified', 'collection': 'image', 'permission': 'rU', '_id': newId() })
-
-# roles for test
-db = conn['test']
-db.drop_collection('AccessUsers')
-cl = db['AccessUsers']
-cl.insert({ 'user': 'gary.bishop.unc@gmail.com', 'role': 'admin', '_id': newId() })
-cl.insert({ 'user': 'anonymous', 'role': 'anonymous', '_id': newId() })
-db.drop_collection('AccessModes')
-cl = db['AccessModes']
-cl.insert({ 'role': 'admin', 'collection': '_ANY_', 'permission': 'crudDL', '_id': newId() })
-cl.insert({ 'role': 'anonymous', 'collection': 'test', 'permission': 'r', '_id': newId() })
-
-# roles for bigwords
-db = conn['BigWords']
-db.drop_collection('AccessUsers')
-cl = db['AccessUsers']
-cl.insert({ 'user': 'gary.bishop.unc@gmail.com', 'role': 'admin', '_id': newId() })
-cl.insert({ 'user': 'duncan.lewis11@gmail.com', 'role': 'admin', '_id': newId() })
-cl.insert({ 'user': 'anonymous', 'role': 'anonymous', '_id': newId() })
-db.drop_collection('AccessModes')
-cl = db['AccessModes']
-cl.insert({ 'role': 'admin', 'collection': '_ANY_', 'permission': 'crudDL', '_id': newId() })
-cl.insert({ 'role': 'anonymous', 'collection': '_ANY_', 'permission': 'crud', '_id': newId() })
-
-# clean out the default collections
-db.drop_collection('rolodex')
-db.drop_collection('status')

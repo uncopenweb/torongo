@@ -1,33 +1,40 @@
 {
+    "title": "AccessModes",
     "description": "Map Roles to Modes",
     "type": "object",
     "properties": {
-        "collection": {
-            "type": "string",
-            "description": "Collection name.",
-            "title": "Collection",
-            "maxLength": 20
-        },
         "role": {
-            "type": "string",
-            "description": "Role name",
-            "title": "Role",
-            "maxLength": 20
+            "type": "array",
+            "items": {
+                "type": "string",
+                "description": "Role name",
+                "title": "Role",
+                "maxLength": 20
+            }
+        },
+        "database": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "description": "Database name.",
+                "title": "Database",
+                "maxLength": 20
+            }
+        },
+        "collection": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "description": "Collection name.",
+                "title": "Collection",
+                "maxLength": 20
+            }
         },
         "permission": {
             "type": "string",
             "description": "Mode string [crudDL]*.",
             "title": "Modes",
-            "maxLength": 20
-        },
-        "fields": {
-            "type": "array",
-            "description": "List of fields to return or empty for all fields.",
-            "title": "Fields",
-            "items": {
-                "type": "string",
-                "description": "Field name from the collection."
-            }
+            "maxLength": 8
         }
     }
 }
