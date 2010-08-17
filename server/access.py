@@ -152,7 +152,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
             permission = '' # others get nothing
                 
         # allowed is the intersection between requested and permitted
-        allowed_mode = requested_mode & permission
+        allowed_mode = requested_mode & set(permission)
         # include field restrictions here
         #print >>sys.stderr, "allowed mode", allowed_mode
         modebits = ''.join(allowed_mode)
@@ -261,6 +261,7 @@ class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
             self.finish()
         elif id == '/user':
             user = self.get_current_user()
+            user['role'] = self.getRole(user)
             s = json.dumps(user)
             self.set_header('Content-length', len(s))
             self.set_header('Content-type', 'application/json')
