@@ -1,0 +1,73 @@
+.uncFormGenerator fieldset {
+    margin: 0 0 1em 1em;
+    padding: 0em 1em 1em 1em;
+    border: 1px solid black;
+    display: inline-block;
+    position: relative;
+}
+.uncFormGenerator fieldset fieldset fieldset fieldset {
+    background-color: #E8E8E8;
+}
+.uncFormGenerator fieldset fieldset fieldset {
+    background-color: #F0F0F0;
+}
+.uncFormGenerator fieldset fieldset {
+    background-color: #F8F8F8;
+}
+.uncFormGenerator legend {
+    font-weight: bold;
+    padding: 0 2px;
+}
+.uncFormGenerator label {
+    text-align: right;
+    min-width: 6em;
+    display: inline-block;
+    font-weight: bold;
+}
+.uncArrayManager + .uncFieldManager {
+    margin: 2em 0 2em 2.3em;
+}
+.uncFormGenerator .dijitTextArea {
+    width: 40em;
+}
+.uncFormGenerator .dijitTextAreaDisabled {
+    background: url("images/buttonDisabled.png") repeat-x scroll left top #FFF;
+}
+.uncFormGenerator .RichTextEditable {
+    width: 50em;
+    margin-left: 7em;
+}
+.uncFormGenerator .description {
+    margin-top: 0;
+    min-height: 4px;
+    max-width: 50em;
+}
+.uncFormGenerator label ~ .description {
+    margin-left: 7em;
+}
+.uncFormGenerator .deleteIcon { 
+    background-image:url(images/cross.png); 
+    width:16px; 
+    height:16px; 
+}
+.uncFormGenerator .addIcon { 
+    background-image:url(images/add.png); 
+    width:16px; 
+    height:16px; 
+}
+.uncFormGenerator .arrayControl {
+    float: right;
+    cursor: pointer;
+}
+.uncFieldManager .arrayControl {
+    display: inline;
+    float: none;
+}
+.uncFieldManager {
+    margin-bottom: 0.5em;
+}
+.uncFieldManager #container {
+    vertical-align: top;
+    display: inline;
+}
+

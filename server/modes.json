@@ -1,0 +1,16 @@
+[
+  { "role": ["anonymous"],
+    "database": ["test"],
+    "collection": ["test"],
+    "permission": "r" },
+
+  { "role": ["admin", "author", "user", "identified", "anonymous"],
+    "database": ["catalog"],
+    "collection": ["rolodex", "catalog"],
+    "permission": "rc" },
+    
+  { "role": ["admin"],
+    "database": ["Admin"],
+    "collection": ["AccessUsers"],
+    "permission": "crud" }
+]

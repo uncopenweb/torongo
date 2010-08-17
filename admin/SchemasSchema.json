@@ -1,0 +1,25 @@
+{
+    "title": "Schemas",
+    "description": "Schemas for collections",
+    "type": "object",
+    "properties": {
+        "database": {
+            "type": "string",
+            "description": "Database name",
+            "title": "Database",
+            "maxLength": 20
+        },
+        "collection": {
+            "type": "string",
+            "description": "Collection name",
+            "title": "Collection",
+            "maxLength": 20
+        },
+        "schema": {
+            "type": "string",
+            "description": "Json for the schema",
+            "title": "Schema",
+            "maxLength": 10000
+        }
+    }
+}

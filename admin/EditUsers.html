@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+    <head>
+    <meta charset="utf-8" />
+    <title>Edit Users</title>
+    <style type="text/css">
+        @import "http://ajax.googleapis.com/ajax/libs/dojo/1.5.0/dojo/resources/dojo.css";
+        @import "http://ajax.googleapis.com/ajax/libs/dojo/1.5.0/dijit/themes/claro/claro.css";
+        @import "http://ajax.googleapis.com/ajax/libs/dojo/1.5.0/dojox/grid/resources/Grid.css";
+        @import "http://ajax.googleapis.com/ajax/libs/dojo/1.5.0/dojox/grid/resources/claroGrid.css";
+        @import "unc/FormGenerator.css";
+        
+        html, body, .dijitBorderContainer {width: 100%; height: 100%;}
+        
+        #grid { width: 400px; height: 200px; border: 1px solid black; }
+    </style>
+    <script type="text/javascript">
+        var djConfig = {
+            cacheBust: 1, // bump when we make a change to any of the editor widgets
+            isDebug: false,
+            parseOnLoad: true,
+            baseUrl: './',
+            modulePaths: { 'unc': 'unc' }
+        };
+    </script>
+    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/dojo/1.5.0/dojo/dojo.xd.js"></script>
+    <script type="text/javascript">
+      dojo.require('dijit.layout.BorderContainer');
+      dojo.require('dijit.layout.ContentPane');
+    </script>
+    <script type="text/javascript" src="/libs/uow.js"></script>
+    <script type="text/javascript" src="EditUsers.js"></script>
+    </head>
+    <body class="claro">
+        <div dojoType="dijit.layout.BorderContainer">
+            <div id="content" dojoType="dijit.layout.ContentPane">
+                hi there
+            </div>
+        </div>
+    </body>
+</html>
