@@ -310,6 +310,29 @@ function main1(user) {
     var modes = dojo.map(combine(['c' , 'r', 'u', 'd']), function(m) {
         return m.join('');
     });
+    
+    // test getMode
+    dojo.forEach(modes, function(mode) {
+        var msg = dojo.replace('Returned mode with {0} loggedIn == {1}', [ mode, loggedIn ]);
+        var func;
+        if (loggedIn) {
+            func = function(db) {
+                equals(db.getMode(), mode, 'mode should match');
+                start();
+            };
+        } else {
+            var expect = 'r';
+            if (!isOK(mode, 'r')) {
+                expect = '';
+            }
+            func = function(db) {
+                equals(db.getMode(), expect, 'only r in not logged in');
+                start();
+            }
+        }
+        doTest(msg, mode, func);
+    });
+    
     dojo.forEach(['DL', 'crud', 'L', 'D'], function(mode) {
         DropTest('Drop collection ' + mode, mode);
     });
