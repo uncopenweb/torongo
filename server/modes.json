@@ -6,7 +6,7 @@
 
   { "role": ["admin", "author", "user", "identified", "anonymous"],
     "database": ["catalog"],
-    "collection": ["rolodex", "catalog"],
+    "collection": ["rolodex", "status"],
     "permission": "rc" },
     
   { "role": ["admin"],
