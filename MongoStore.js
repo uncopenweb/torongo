@@ -79,6 +79,10 @@ dojo.declare('uow.data.MongoStore', [dojox.data.JsonRestStore], {
         else {
             return this.inherited(arguments);
         }
+    },
+    getMode: function() {
+        // return the permission string actually granted
+        return this.accessKey.split('-')[0]
     }
 
 
