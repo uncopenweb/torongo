@@ -42,8 +42,9 @@ dojo.declare('unc.GenericEditor', [dijit._Widget, dijit._Templated, dijit._Conta
         this.saveNewButton.attr('disabled', true);
 
         this.store.fetch({query: {name:"default"}, onComplete: dojo.hitch(this, function(items) {
-            if(items.length > 0)
-                this._default = items[0];        
+            if(items.length > 0) {
+                this._default = items[0]; 
+            }       
             console.log("Default:", this._default);
         })
         });
@@ -83,8 +84,7 @@ dojo.declare('unc.GenericEditor', [dijit._Widget, dijit._Templated, dijit._Conta
 
     //Note: The select does not fire through 'hardSelect', but follows same behavior
     newItem: function(evt) {
-        this.current = this.store.newItem();
-        this.grid.selection.select(this.grid.getItemIndex(this.current));
+        this.current = {};
         this.newForm(this._default);
         this.saveButton.attr('disabled', false);
         this.saveNewButton.attr('disabled', true);
@@ -94,8 +94,12 @@ dojo.declare('unc.GenericEditor', [dijit._Widget, dijit._Templated, dijit._Conta
     save: function() {
         var value = this.form.attr('value');
 
-        this.store.changing(this.current);
-        dojo.mixin(this.current, value);
+        if (this.store.isItem(this.current)) {
+            this.store.changing(this.current);
+            dojo.mixin(this.current, value);
+        } else {
+            this.current = this.store.newItem(value);
+        }
         var a = this.store.save({
             onComplete: function() {
                 console.log('save complete, does grid update?');
@@ -132,14 +136,18 @@ dojo.declare('unc.GenericEditor', [dijit._Widget, dijit._Templated, dijit._Conta
         this.yesNoDialog("Delete Item?", dojo.replace("Are you sure you want to delete {0}?", 
                 [this.selected.name]), deleteCallback);
         //clear last 'session' remainders
-        if(this.form) this.form.destroyRecursive();
+        if(this.form) {
+            this.form.destroyRecursive();
+        }
         this.selectedGoesHere.innerHTML = "";
     },
 
     //Util
 
     newForm: function(item) {
-        if(this.form) this.form.destroyRecursive();
+        if(this.form) {
+            this.form.destroyRecursive();
+        }
 
         this.form = new unc.FormGenerator({
             schema: this.schema,
