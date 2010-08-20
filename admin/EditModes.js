@@ -10,19 +10,19 @@ dojo.declare('EditModes', null, {
                 field: '_item',
                 name: 'Database',
                 width: '25%',
-                formatter: function(item) { return item.database.join(' '); }
+                formatter: function(item) { console.log('database', item); return item.database.join(' '); }
             },
             {
                 field: '_item',
                 name: 'Collection',
                 width: '25%',
-                formatter: function(item) { return item.collection.join(' '); }
+                formatter: function(item) { console.log('collection', item); return item.collection.join(' '); }
             },
             {
                 field: '_item',
                 name: 'Role',
                 width: '25%',
-                formatter: function(item) { return item.role.join(' '); }
+                formatter: function(item) { console.log('role', item); return item.role.join(' '); }
             },
             {
                 field: 'permission',

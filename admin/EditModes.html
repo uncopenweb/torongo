@@ -27,6 +27,7 @@
     <script type="text/javascript">
       dojo.require('dijit.layout.BorderContainer');
       dojo.require('dijit.layout.ContentPane');
+      dojo.require('dijit.Form.TextBox');
     </script>
     <script type="text/javascript" src="/libs/uow.js"></script>
     <script type="text/javascript" src="EditModes.js"></script>
@@ -34,7 +35,7 @@
     <body class="claro">
         <div dojoType="dijit.layout.BorderContainer">
             <div id="content" dojoType="dijit.layout.ContentPane" region="center">
-                hi there
+                <div id="dbName" dojoType="dijit.Form.TextBox"></div>
             </div>
         </div>
     </body>
