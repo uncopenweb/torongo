@@ -90,6 +90,7 @@ dojo.declare('unc.FormGenerator', [ dijit.form.Form ], {
                 });
                 control = new dijit.form.Select({
                     name: name,
+                    value: init,
                     options: options
                 });
             } else {
