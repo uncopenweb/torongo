@@ -1,16 +1,61 @@
 [
-  { "role": ["anonymous"],
-    "database": ["test"],
-    "collection": ["test"],
+  { "role": "anonymous",
+    "database": "test",
+    "collection": "test",
     "permission": "r" },
 
-  { "role": ["admin", "author", "user", "identified", "anonymous"],
-    "database": ["catalog"],
-    "collection": ["rolodex", "status"],
+  { "role": "admin",
+    "database": "catalog",
+    "collection": "rolodex",
     "permission": "rc" },
     
-  { "role": ["admin"],
-    "database": ["Admin"],
-    "collection": ["AccessUsers"],
+  { "role": "author", 
+    "database": "catalog",
+    "collection": "rolodex",
+    "permission": "rc" },
+    
+  { "role": "user", 
+    "database": "catalog",
+    "collection": "rolodex",
+    "permission": "rc" },
+    
+  { "role": "identified",
+    "database": "catalog",
+    "collection": "rolodex",
+    "permission": "rc" },
+    
+  { "role": "anonymous",
+    "database": "catalog",
+    "collection": "rolodex",
+    "permission": "rc" },
+    
+  { "role": "admin",
+    "database": "catalog",
+    "collection": "status",
+    "permission": "rc" },
+    
+  { "role": "author", 
+    "database": "catalog",
+    "collection": "status",
+    "permission": "rc" },
+    
+  { "role": "user", 
+    "database": "catalog",
+    "collection": "status",
+    "permission": "rc" },
+    
+  { "role": "identified",
+    "database": "catalog",
+    "collection": "status",
+    "permission": "rc" },
+    
+  { "role": "anonymous",
+    "database": "catalog",
+    "collection": "status",
+    "permission": "rc" },
+    
+  { "role": "admin",
+    "database": "Admin",
+    "collection": "AccessUsers",
     "permission": "crud" }
 ]
