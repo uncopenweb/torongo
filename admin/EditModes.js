@@ -5,45 +5,26 @@ dojo.declare('EditModes', null, {
     constructor: function() {
         this.inherited(arguments);
         
-        layout = [
-            {
-                field: '_item',
-                name: 'Database',
-                width: '25%',
-                formatter: function(item) { console.log('database', item); return item.database.join(' '); }
-            },
-            {
-                field: '_item',
-                name: 'Collection',
-                width: '25%',
-                formatter: function(item) { console.log('collection', item); return item.collection.join(' '); }
-            },
-            {
-                field: '_item',
-                name: 'Role',
-                width: '25%',
-                formatter: function(item) { console.log('role', item); return item.role.join(' '); }
-            },
-            {
-                field: 'permission',
-                name: 'Permission',
-                width: '25%'
-            }
-        ];
-
-        // get the schema
-        var schema;
-        var d1 = dojo.xhrGet({
-            url: 'AccessModesSchema.json',
-            handleAs: 'json'
-        }).then(function(s) { schema = s; });
-        // get the store
-        var store;
+        dojo.connect('openButton', 'onClick', this, 'openDB');
+    },
+    
+    openDB: function() {
+        var dbName = dijit.byId('dbName').attr('value');
+        
+        var collectionStore;
+        var d1 = uow.getDatabase({
+            database: dbName,
+            collection: '*',
+            mode: 'L'
+        }).then(function(s) { collectionStore = s; });
+        
+        var modeStore;
         var d2 = uow.getDatabase({
             database: 'Admin',
             collection: 'AccessModes',
             mode: 'crud'
-        }).then(function(s) { store = s; });
+        }).then(function(s) { modeStore = s; });
+        
         // wait on both to finish
         var d3 = new dojo.DeferredList([d1,d2]);
         
@@ -61,6 +42,6 @@ dojo.declare('EditModes', null, {
 });
 
 dojo.ready(function() {
-    var e = new EditModes();
+    //var e = new EditModes();
 });
 
