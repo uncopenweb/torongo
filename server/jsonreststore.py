@@ -189,7 +189,7 @@ class CollectionHandler(access.BaseHandler):
             stop = int(r.group(2))
         else:
             start = 0
-            stop = 10
+            stop = None
         
         # hand off to the worker thread to do the possibly slow db access
         self.run_async(self._callback, self._worker, collection, findSpec, sortSpec, start, stop)
@@ -201,7 +201,10 @@ class CollectionHandler(access.BaseHandler):
         if sortSpec:
             cursor = cursor.sort(sortSpec)
         Nitems = cursor.count()
-        stop = min(stop, Nitems)
+        if stop is None:
+            stop = Nitems
+        else:
+            stop = min(stop, Nitems)
         cursor = cursor.skip(start).limit(stop-start+1)
 
         rows = list(cursor)
@@ -291,15 +294,21 @@ class ItemHandler(access.BaseHandler):
         #self.write('{ "result": "OK" }');
 
 class TestHandler(access.BaseHandler):
-    def get(self):
-        db = self.mongo_conn['test']
-        db.drop_collection('test')
-        collection = db['test']
-        
-        for value,word in enumerate(['foo', 'bar', 'fee', 'baa']):
-            collection.insert({ 'word': word, 'value': value, '_id': newId() }, safe=True)
-        
-        self.write('ok')
+    def get(self, flag):
+        if flag == 'reset':
+            db = self.mongo_conn['test']
+            db.drop_collection('test')
+            collection = db['test']
+            
+            for value,word in enumerate(['foo', 'bar', 'fee', 'baa']):
+                collection.insert({ 'word': word, 'value': value, '_id': newId() }, safe=True)
+            
+            self.write('ok')
+            
+        elif re.match(r'\d+', flag):
+            code = int(flag)
+            raise HTTPError(code)
+            
         
 def generate_secret(seed):
     '''Generate the secret string for hmac'''
@@ -329,7 +338,7 @@ def run(port=8888, threads=4, debug=False, static=False, pid=None,
         (r"/data/([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/$", CollectionHandler),
         (r"/data/([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/([a-f0-9]+)", ItemHandler),
         (r"/data/_auth(.*)$", access.AuthHandler),
-        (r"/data/_test_reset$", TestHandler),
+        (r"/data/_test_(reset|\d+)$", TestHandler),
     ], **kwargs)
     http_server = tornado.httpserver.HTTPServer(application)
     http_server.listen(port)
@@ -378,7 +387,7 @@ def run_from_args():
         help="seed for the random number generator")
     (options, args) = parser.parse_args()
     if options.generate:
-        vals = generate_sample_data(options.generate, options.mongohost, 
+        generate_sample_data(options.generate, options.mongohost, 
             options.mongoport)
         #print 'Generated %d random items in db: %s, collection: %s' % vals
     # run the server
