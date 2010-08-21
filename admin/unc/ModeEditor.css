@@ -1,0 +1,34 @@
+#modeTable {
+    border: 1px solid black;
+    border-collapse: collapse;
+}
+
+#modeTable th {
+    font-weight: bold;
+    border: 1px solid grey;
+    padding: 3px;
+    text-align: center;
+}
+
+#modeTable tr {
+    border: 1px solid gray;
+}
+
+#modeTable td {
+    border: 1px solid gray;
+    padding: 3px;
+}
+
+#modeTable label {
+    padding-right: 2px;
+    padding-left: 3px;
+}
+
+colgroup {
+    border: 2px solid black;
+}
+
+#loginMsg.hidden {
+    display: none;
+}
+
