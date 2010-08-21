@@ -65,20 +65,9 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         if role is None:
             role = self.getRole(user)
         
-        # this should probably be disabled on the production server
-        # note the db name _Admin is not accessible from this web interface
         if role not in [ 'superuser', 'developer' ]:
             print >>sys.stderr, user, "role not developer"
             return False
-        if 'X-Real-Ip' not in self.request.headers:
-            print >>sys.stderr, "X-Real-Ip not found"
-            return False
-        rip = self.request.headers['X-Real-IP']
-        if 'X-Uow-User' not in self.request.headers and not localIP.match(rip):
-            print >>sys.stderr, "X-Uow-User not found"
-            print >>sys.stderr, self.request.headers
-            return False
-        #print >>sys.stderr, "OK"
         return True   
 
     def makeSignature(self, db, collection, user, modebits, timebits):
@@ -135,12 +124,21 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         perms = AccessModes.find_one( { 'role': role, 
                                         'database': dbName, 
                                         'collection': collection } )
-
-        if dbName == 'Admin' and collection == 'Developers':
+                                        
+        if dbName == 'admin':
+            permission = ''
+            
+        elif dbName == 'Admin' and collection == 'Developers':
             if role == "superuser":
                 permission = requested_mode
             else:
                 permission = ''
+                
+        elif dbName == 'Admin' and collection == 'AccessUsers':
+            if role in [ 'superuser', 'developer' ]:
+                permission = requested_mode
+            elif role in [ 'admin' ]:
+                permission = 'crud'
                 
         elif perms:
             permission = perms['permission']
