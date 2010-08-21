@@ -85,9 +85,9 @@ status = '''{
             "maxLength": 64
         },
         "dt": { "type": "string",
-                "maxLength": 25 },
+                "maxLength": 64 },
         "from": { "type": "string",
-                  "maxLength": 40 }
+                  "maxLength": 64 }
     },
     "additionalProperties": false
 }'''
