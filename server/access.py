@@ -54,6 +54,8 @@ class BaseHandler(mongo_util.MongoRequestHandler):
             result = { 'email' : None }
         else:
             result = tornado.escape.json_decode(user_json)
+            if 'email' not in result:
+                result['email'] = None
         #print 'get_current_user', result
         return result
         
