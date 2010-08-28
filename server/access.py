@@ -68,7 +68,6 @@ class BaseHandler(mongo_util.MongoRequestHandler):
             role = self.getRole(user)
         
         if role not in [ 'superuser', 'developer' ]:
-            print >>sys.stderr, user, "role not developer"
             return False
         return True   
 
