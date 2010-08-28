@@ -13,10 +13,10 @@ import json
 import socket
 import struct
 import jsonschema
-import sys
 import httplib
 import traceback
 import re
+import logging
 
 localIP = re.compile(r'127\.0\.[01]\.1$')
 
@@ -55,8 +55,9 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         else:
             result = tornado.escape.json_decode(user_json)
             if 'email' not in result:
+                logging.warning('no email in user: %s' % repr(result))
                 result['email'] = None
-        #print 'get_current_user', result
+        logging.debug('user: %s' % repr(result))
         return result
         
     def isDeveloper(self, user=None, role=None):
@@ -153,7 +154,6 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         # allowed is the intersection between requested and permitted
         allowed_mode = requested_mode & set(permission)
         # include field restrictions here
-        #print >>sys.stderr, "allowed mode", allowed_mode
         modebits = ''.join(allowed_mode)
         timebits = '%x' % int(datetime.now().strftime('%y%m%d%H%M%S'))
         # construct the signed result
@@ -191,17 +191,12 @@ class BaseHandler(mongo_util.MongoRequestHandler):
     def validateSchema(self, db, collection, item):
         schemas = self.mongo_conn[AdminDbName]['Schemas']
         info = schemas.find_one({ 'database': db, 'collection': collection })
-        #print >>sys.stderr, 'db=', db, 'collection=', collection, 'item', item, 'info', info
         if not info:
-            #print >>sys.stderr, "No schema"
             return
-        #print >>sys.stderr, "validating"
         try:
             jsonschema.validate(item, json.loads(info['schema']))
         except ValueError, e:
-            #print >>sys.stderr, "failed", e.message
             raise HTTPError(403, e.message)
-        #print >>sys.stderr, "OK"
         
     def get_error_html(self, status_code, **kwargs):
         '''Override their error message to give developers more info'''
@@ -237,14 +232,11 @@ class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
     '''Handle authentication using Google OpenID'''
     @tornado.web.asynchronous
     def get(self, id):
-        #print 'auth get', id
         if not id:
             # start auth from Google
             if self.get_argument("openid.mode", None):
-                #print 'calling get_authenticed_user'
                 self.get_authenticated_user(self.async_callback(self._on_auth))
                 return
-            #print 'calling authenticate_redirect'
             self.authenticate_redirect()
         elif id == '-start':
             resp = '''
@@ -268,7 +260,6 @@ class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
             self.finish()
 
         else:
-            #print 'sending response'
             # wrap up the authorization
             resp = '''
 <html>
@@ -283,10 +274,8 @@ class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
             self.finish()
 
     def _on_auth(self, user):
-        #print 'on_auth', user
         if user:
             self.set_secure_cookie("user", tornado.escape.json_encode(user))
-            #print 'set the cookie', user
             self.redirect("/data/_auth-ok")
         else:
             self.redirect("/data/_auth-failed")
