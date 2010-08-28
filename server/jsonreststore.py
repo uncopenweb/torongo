@@ -21,6 +21,9 @@ import urllib
 import optparse
 import access
 import sys
+import logging
+import myLogging
+import time
 
 def newId():
     '''Use the mongo ID mechanism but convert them to strings'''
@@ -322,11 +325,23 @@ def run(port=8888, threads=4, debug=False, static=False, pid=None,
         # launch as a daemon and write the pid file
         import daemon
         daemon.daemonize(pid)
+    # retry making the mongo connection with exponential backoff
+    for i in range(8):
+        try:
+            conn = pymongo.Connection(mongo_host, mongo_port)
+            break
+        except pymongo.errors.AutoReconnect:
+            t = 2 ** i
+            logging.warning('backoff on python connection %d' % t)
+            time.sleep(t)
+    else:
+        raise pymongo.errors.AutoReconnect
+            
     kwargs = {
         'cookie_secret': generate_secret(seed),
         'debug': debug,
         'thread_count': threads,
-        'mongo_conn' : pymongo.Connection(mongo_host, mongo_port)
+        'mongo_conn' : conn
     }
     if static:
         kwargs['static_path'] = os.path.join(os.path.dirname(__file__), "../")
@@ -362,7 +377,7 @@ def generate_sample_data(n, host, port):
 
 def run_from_args():
     '''
-    Runs an instance of the JSonic server with options pulled from the command
+    Runs an instance of the torongo server with options pulled from the command
     line.
     '''
     parser = optparse.OptionParser()
@@ -376,7 +391,11 @@ def run_from_args():
         help="size of the worker pool (default=4)", type="int")
     parser.add_option("-g", "--generate", dest="generate", default=0,
         help="generate N random items in a db collection for testing (default=0)", 
-        type="int")    
+        type="int")
+    parser.add_option("--logId", dest="logId", default='', type="str",
+        help="identity in syslog (default log to stderr)")
+    parser.add_option("--logLevel", dest="logLevel", default="warning", type="str",
+        help="logging level (info|debug|warning|error)")
     parser.add_option("--debug", dest="debug", action="store_true", 
         default=False, help="enable Tornado debug mode w/ automatic loading (default=false)")
     parser.add_option("--static", dest="static", action="store_true", 
@@ -390,6 +409,13 @@ def run_from_args():
         generate_sample_data(options.generate, options.mongohost, 
             options.mongoport)
         #print 'Generated %d random items in db: %s, collection: %s' % vals
+        
+    # initialize logging
+    if options.logId:
+        id = '%s:%d' % (options.logId, os.getpid())
+        myLogging.init(id, options.logLevel)
+    logging.warning('startup')
+
     # run the server
     run(options.port, options.workers, options.debug, options.static, 
         options.pid, options.mongohost, options.mongoport, options.seed)
