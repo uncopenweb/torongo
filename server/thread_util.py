@@ -164,12 +164,12 @@ class AsyncThreadPool(object):
             elapseds = filter(
                 lambda d: d > self.MONITOR_TRIGGER_STUCK_THREAD_SECONDS,
                 elapseds)
-            logging.debug('monitor: thread elapseds = %r' % elapseds)
+            #logging.debug('monitor: thread elapseds = %r' % elapseds)
             nelapsed = len(elapseds)
             if nelapsed:
-                logging.info('monitor: %d threads are stuck' % nelapsed)
+                logging.warning('monitor: %d threads are stuck' % nelapsed)
             if nelapsed >= num_max_stuck_threads:
-                logging.info('monitor: too many threads are stuck, '
+                logging.error('monitor: too many threads are stuck, '
                              'committing suicide')
                 # hard exit.
                 os._exit(1)
