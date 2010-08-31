@@ -205,9 +205,9 @@ class CollectionHandler(access.BaseHandler):
             cursor = cursor.sort(sortSpec)
         Nitems = cursor.count()
         if stop is None:
-            stop = Nitems
+            stop = Nitems-1
         else:
-            stop = min(stop, Nitems)
+            stop = min(stop, Nitems-1)
         cursor = cursor.skip(start).limit(stop-start+1)
 
         rows = list(cursor)
