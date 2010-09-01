@@ -274,7 +274,7 @@ class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
             self.finish()
 
     def _on_auth(self, user):
-        if user:
+        if user and 'email' in user and '@' in user['email']:
             self.set_secure_cookie("user", tornado.escape.json_encode(user))
             self.redirect("/data/_auth-ok")
         else:
