@@ -95,7 +95,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         else:
             AccessUsers = db['AccessUsers']
             info = AccessUsers.find_one( { 'user': user['email'] } )
-            if info:
+            if info and info['role'] not in [ 'superuser', 'developer' ]:
                 role = info['role']
             elif user['email'] is None: # not logged in
                 role = 'anonymous'
