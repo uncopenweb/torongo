@@ -8,7 +8,7 @@
             "description": "Role name",
             "title": "Role",
             "maxLength": 20,
-            "enum": [ "superuser", "developer", "admin", "author", "user", "identified", "anonymous" ]
+            "enum": [ "developer", "admin", "author", "identified", "anonymous" ]
         },
         "database": {
             "type": "string",

@@ -68,7 +68,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         if role is None:
             role = self.getRole(user)
         
-        if role not in [ 'superuser', 'developer' ]:
+        if role not in [ 'developer' ]:
             return False
         return True   
 
@@ -83,6 +83,9 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         if user is None:
             user = self.get_current_user()
             
+        if user['email'] is None:
+            return 'anonymous'
+            
         # connect to the Admin db
         if db is None:
             db = self.mongo_conn[AdminDbName]
@@ -95,7 +98,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         else:
             AccessUsers = db['AccessUsers']
             info = AccessUsers.find_one( { 'user': user['email'] } )
-            if info and info['role'] not in [ 'superuser', 'developer' ]:
+            if info and info['role'] not in [ 'developer' ]:
                 role = info['role']
             elif user['email'] is None: # not logged in
                 role = 'anonymous'
@@ -131,16 +134,16 @@ class BaseHandler(mongo_util.MongoRequestHandler):
             permission = ''
             
         elif dbName == 'Admin' and collection == 'Developers':
-            if role == "superuser":
+            if role == "developer" and user.email == 'gary.bishop.unc@gmail.com':
                 permission = requested_mode
             else:
                 permission = ''
                 
         elif dbName == 'Admin' and collection == 'AccessUsers':
-            if role in [ 'superuser', 'developer' ]:
+            if role in [ 'developer', 'admin' ]:
                 permission = requested_mode
-            elif role in [ 'admin' ]:
-                permission = 'crud'
+            else:
+                permission = ''
                 
         elif perms:
             permission = perms['permission']
