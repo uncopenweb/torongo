@@ -1,0 +1,20 @@
+{
+    "title": "Developers",
+    "description": "Map Users to Roles",
+    "type": "object",
+    "properties": {
+        "user": {
+            "type": "string",
+            "description": "OpenID for this user.",
+            "title": "OpenId",
+            "maxLength": 60
+        },
+        "role": {
+            "type": "string",
+            "description": "Role for this user.",
+            "title": "Role",
+            "maxLength": 20,
+            "enum": [ "developer", "admin", "author", "user" ]
+        }
+    }
+}
