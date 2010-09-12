@@ -30,6 +30,11 @@
     </script>
     <script type="text/javascript" src="/libs/uow.js"></script>
     <script type="text/javascript" src="EditUsers.js"></script>
+    <script type="text/javascript">
+        dojo.ready(function() {
+            var e = new EditUsers('AccessUsers', 'AccessUsersSchema.json');
+        });
+    </script>
     </head>
     <body class="claro">
         <div dojoType="dijit.layout.BorderContainer">

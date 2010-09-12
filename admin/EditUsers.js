@@ -2,7 +2,7 @@ dojo.require('unc.GenericEditor');
 dojo.require('dojo.DeferredList');
 
 dojo.declare('EditUsers', null, {
-    constructor: function() {
+    constructor: function(collection, schema) {
         this.inherited(arguments);
         
         layout = [
@@ -21,14 +21,14 @@ dojo.declare('EditUsers', null, {
         // get the schema
         var schema;
         var d1 = dojo.xhrGet({
-            url: 'AccessUsersSchema.json',
+            url: schema,
             handleAs: 'json'
         }).then(function(s) { schema = s; });
         // get the store
         var store;
         var d2 = uow.getDatabase({
             database: 'Admin',
-            collection: 'AccessUsers',
+            collection: collection,
             mode: 'crud'
         }).then(function(s) { store = s; });
         // wait on both to finish
@@ -47,7 +47,5 @@ dojo.declare('EditUsers', null, {
             
 });
 
-dojo.ready(function() {
-    var e = new EditUsers();
-});
+
 
