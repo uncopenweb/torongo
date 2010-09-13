@@ -250,6 +250,30 @@ function Read(mode) {
     };
 }
 
+function RestrictedRead(mode, key) {
+    return function(db) {
+        var pass = isOK(mode, 'r') || isOK(mode, 'R');
+        var count;
+        if (isOK(mode, 'r')) {
+            count = { 'foo': 1, 'baa': 2, 'f*': 2, 'b*': 4, 'fo*': 1 } [ key ];
+        } else if (isOK(mode, 'R')) {
+            count = { 'foo': 1, 'baa': 0, 'f*': 0, 'b*': 0, 'fo*': 0 } [ key ];
+        }
+        
+        db.fetch({
+            query: { 'word': key },
+            onComplete: function(items) {
+                ok(pass && items.length == count, dojo.replace('count should be {0}', [ count ]));
+                start();
+            },
+            onError: function() {
+                ok(!pass, 'fetch should fail');
+                start();
+            }
+        });
+    };
+}
+
 function fetchIt(db, key, value) {
             db.fetch( {
                 query: { 'word': key },
@@ -355,6 +379,14 @@ function main1(user) {
         doTest(msg, mode, Read(mode));
     });
     
+    // test restricted read
+    dojo.forEach(['r', 'R'], function(mode) {
+        dojo.forEach(['foo', 'baa', 'f*', 'b*', 'fo*' ], function(key) {
+            var msg = dojo.replace('Restricted read with mode {0} key == {1}', [ mode, key ]);
+            doTest(msg, mode, RestrictedRead(mode, key));
+        });
+    });
+
     // test create and update
     dojo.forEach(['Create', 'Update'], function(func) {
         dojo.forEach(modes, function(mode) {

@@ -80,6 +80,15 @@ def TranslateQuery(obj):
         # pass anything else on
         return obj
         
+def RestrictQuery(query):
+    restricted = {}
+    for key,value in query.iteritems():
+        if key.startswith('$'):
+            continue
+        if type(value) in [ unicode, int, float ]:
+            restricted[key] = value
+    return restricted
+        
 def doQuery(item, spec):
     '''simulate a mongo query on the collection names'''
     if not spec:
@@ -157,7 +166,9 @@ class CollectionHandler(access.BaseHandler):
     @tornado.web.asynchronous
     def get(self, db_name, collection_name):
         '''Handle queries'''
-        if not self.checkAccessKey(db_name, collection_name, access.Read):
+        readMode = self.checkAccessKey(db_name, collection_name, access.Read)
+        restrict = readMode == access.RestrictedRead
+        if not readMode:
             raise HTTPError(403, 'read not permitted (%s)' % self.checkAccessKeyMessage)
         
         collection = self.mongo_conn[db_name][collection_name]
@@ -178,28 +189,30 @@ class CollectionHandler(access.BaseHandler):
                 raise HTTPError(400, unicode(e));
             # convert to format expected by mongo
             findSpec = TranslateQuery(q)
+            if restrict:
+                findSpec = RestrictQuery(findSpec)
 
         # check for a sorting request
         sortSpec = []
-        if 'ms' in self.request.arguments:
+        if not restrict and 'ms' in self.request.arguments:
             for s in self.request.arguments['ms'][0].split(','):
                 sortSpec.append((s[1:], { '+':pymongo.ASCENDING, '-':pymongo.DESCENDING }[s[0]]))
 
         # see how much we are to send
         r = re.compile(r'items=(\d+)-(\d+)').match(self.request.headers.get('Range', ''))
-        if r:
+        if not restrict and r:
             start = int(r.group(1))
             stop = int(r.group(2))
         else:
             start = 0
             stop = None
-        
+            
         # hand off to the worker thread to do the possibly slow db access
-        self.run_async(self._callback, self._worker, collection, findSpec, sortSpec, start, stop)
+        self.run_async(self._callback, self._worker, collection, findSpec, sortSpec, start, stop,
+                       restrict)
 
-    def _worker(self, collection, findSpec, sortSpec, start, stop):
+    def _worker(self, collection, findSpec, sortSpec, start, stop, restrict):
         '''Do just the db query in a thread, the hand off to the callback to write the results'''
-        # restrict fields here
         cursor = collection.find(findSpec)
         if sortSpec:
             cursor = cursor.sort(sortSpec)
@@ -210,7 +223,13 @@ class CollectionHandler(access.BaseHandler):
             stop = min(stop, Nitems-1)
         cursor = cursor.skip(start).limit(stop-start+1)
 
-        rows = list(cursor)
+        if restrict and Nitems > 1:
+            rows = []
+            start = 0
+            stop = 0
+            Nitems = 0
+        else:
+            rows = list(cursor)
         return (rows, start, stop, Nitems)
     
     def _callback(self, result, *args):
@@ -303,7 +322,7 @@ class TestHandler(access.BaseHandler):
             db.drop_collection('test')
             collection = db['test']
             
-            for value,word in enumerate(['foo', 'bar', 'fee', 'baa']):
+            for value,word in enumerate(['foo', 'bar', 'fee', 'baa', 'baa', 'bar']):
                 collection.insert({ 'word': word, 'value': value, '_id': newId() }, safe=True)
             
             self.write('ok')

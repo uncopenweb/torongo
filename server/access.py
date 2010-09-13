@@ -22,7 +22,8 @@ localIP = re.compile(r'127\.0\.[01]\.1$')
 
 # mode names
 Create = set('c')
-Read = set('r')
+Read = set('rR')
+RestrictedRead = set('R')
 Update = set('u')
 Delete = set('d')
 DropCollection = set('D')
