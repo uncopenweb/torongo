@@ -29,11 +29,12 @@ dojo.ready(function() {
     };
 });
 
-var roles = [ 'admin', 'author', 'identified', 'anonymous' ];
-
 dojo.declare('unc.ModeEditor', [ dijit._Widget, dijit._Templated ], {
     templatePath: dojo.moduleUrl("unc", "ModeEditor.html"),
     widgetsInTemplate: true,
+    
+    roles: [ 'admin', 'author', 'identified', 'anonymous' ],
+    modes: 'crRud',
     
     postCreate: function() {
         var self = this;
@@ -80,9 +81,9 @@ dojo.declare('unc.ModeEditor', [ dijit._Widget, dijit._Templated ], {
         var self = this;
         
         dojo.forEach(self.collections, function(collection) {
-            dojo.forEach(roles, function(role) {
+            dojo.forEach(self.roles, function(role) {
                 var mode = [];
-                dojo.forEach('crud', function(p) {
+                dojo.forEach(self.modes, function(p) {
                     var id = collection + '-' + role + '-' + p;
                     if (dijit.byId(id).attr('value')) {
                         mode.push(p);
@@ -175,7 +176,7 @@ dojo.declare('unc.ModeEditor', [ dijit._Widget, dijit._Templated ], {
         }
         
         function setter(mode, collection, role, parent) {
-            dojo.forEach('crud', function(perm) {
+            dojo.forEach(self.modes, function(perm) {
                 var td = dojo.create('td', {}, parent);
                 var c = dijit.form.CheckBox({
                     title: perm,
@@ -187,9 +188,9 @@ dojo.declare('unc.ModeEditor', [ dijit._Widget, dijit._Templated ], {
         
         var cg = dojo.create('colgroup', {}, self.table);
         dojo.create('col', {}, cg);
-        dojo.forEach(roles, function(role) {
+        dojo.forEach(self.roles, function(role) {
             var cg = dojo.create('colgroup', { className: 'selector' }, self.table);
-            for(j=0; j<4; j++) {
+            for(j=0; j<self.modes.length; j++) {
                 dojo.create('col', { }, cg);
             }
         });
@@ -197,13 +198,13 @@ dojo.declare('unc.ModeEditor', [ dijit._Widget, dijit._Templated ], {
         var h1 = dojo.create('tr', {}, self.tableHead);
         
         th('Roles', h1);
-        dojo.forEach(roles, function(role) {
-            th(role, h1, 4);
+        dojo.forEach(self.roles, function(role) {
+            th(role, h1, self.modes.length);
         });
         var h2 = dojo.create('tr', {}, self.tableHead);
         th('Collections', h2);
-        dojo.forEach(roles, function(role) {
-            dojo.forEach('crud', function(p) {
+        dojo.forEach(self.roles, function(role) {
+            dojo.forEach(self.modes, function(p) {
                 th(p, h2);
             });
         });
@@ -211,7 +212,7 @@ dojo.declare('unc.ModeEditor', [ dijit._Widget, dijit._Templated ], {
         dojo.forEach(self.collections, function(collection) {
             var tr = dojo.create('tr', {}, self.tableBody);
             dojo.create('td', {innerHTML: collection}, tr);
-            dojo.forEach(roles, function(role) {
+            dojo.forEach(self.roles, function(role) {
                 var mode =  perms[collection] && perms[collection][role] &&
                             perms[collection][role].permission || '';
                 setter(mode, collection, role, tr);
