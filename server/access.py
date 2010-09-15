@@ -135,7 +135,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
             permission = ''
             
         elif dbName == 'Admin' and collection == 'Developers':
-            if role == "developer" and user.email == 'gary.bishop.unc@gmail.com':
+            if role == "developer" and user.get('email', '') == 'gary.bishop.unc@gmail.com':
                 permission = requested_mode
             else:
                 permission = ''
