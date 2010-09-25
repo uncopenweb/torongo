@@ -29,8 +29,9 @@ Delete = set('d')
 DropCollection = set('D')
 List = set('L')
 Upload = set('U')
+Owner = set('O')
 
-modeSet = Create | Read | Update | Delete | DropCollection | List | Upload
+modeSet = Create | Read | Update | Delete | DropCollection | List | Upload | Owner
 
 KeyDuration = timedelta(1, 0) # one day
 
@@ -149,7 +150,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         elif perms:
             permission = perms['permission']
             
-        elif self.isDeveloper(user, role):
+        elif role in [ 'developer' ]:
             permission = requested_mode # developers get their wish
             
         else:
@@ -157,6 +158,14 @@ class BaseHandler(mongo_util.MongoRequestHandler):
                 
         # allowed is the intersection between requested and permitted
         allowed_mode = requested_mode & set(permission)
+        if role not in [ 'developer' ]:
+            schemas = self.mongo_conn[AdminDbName]['Schemas']
+            info = schemas.find_one({ 'database': db, 'collection': collection })
+            if info:
+                schema = json.loads(info['schema'])
+                if 'OwnerEmail' in schema['properties']:
+                    allowed_mode = allowed_mode | Owner
+
         # include field restrictions here
         modebits = ''.join(allowed_mode)
         timebits = '%x' % int(datetime.now().strftime('%y%m%d%H%M%S'))
@@ -186,8 +195,8 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         if delay > KeyDuration:
             self.checkAccessKeyMessage = 'key expired'
             return False
-        allowedMode = set(modebits) & modeSet
-        result = (allowedMode & mode)
+        self.allowedMode = set(modebits) & modeSet
+        result = (self.allowedMode & mode)
         if not result:
             self.checkAccessKeyMessage = 'Mode not in allowed set'
         return result
@@ -198,7 +207,8 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         if not info:
             return
         try:
-            jsonschema.validate(item, json.loads(info['schema']))
+            schema = json.loads(info['schema'])
+            jsonschema.validate(item, schema)
         except ValueError, e:
             raise HTTPError(403, e.message)
         

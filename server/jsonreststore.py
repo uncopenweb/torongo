@@ -20,7 +20,6 @@ import random
 import urllib
 import optparse
 import access
-import sys
 import logging
 import myLogging
 import time
@@ -264,6 +263,9 @@ class CollectionHandler(access.BaseHandler):
         
         self.validateSchema(db_name, collection_name, item)
         
+        if self.allowedMode & access.Owner:
+            item['owner'] = self.get_current_user()['email']
+        
         collection.insert(item, safe=True)
         # this path should get encoded only one place, fix this
         self.set_header('Location', '/data/%s/%s/%s' % (db_name, collection_name, id))
@@ -300,11 +302,16 @@ class ItemHandler(access.BaseHandler):
             s = self.request.body
             s = s.replace('"$ref":', '"_ref":') # restore $ref
             new_item = json.loads(s, object_hook=pymongo.json_util.object_hook)
+            new_item['_id'] = id
         except ValueError, e:
             raise HTTPError(400, unicode(e));
         # if limited fields were given to this user, merge others in here
         self.validateSchema(db_name, collection_name, new_item)
-        collection.update({ '_id': new_item['_id'] }, new_item, upsert=False, safe=True)
+        if self.allowedMode & access.Owner:
+            old_item = collection.find_one({ '_id': id })
+            if not old_item or old_item['OwnerEmail'] != new_item['OwnerEmail']:
+                raise HTTPError(403, 'update not permitted (not owner)')
+        collection.update({ '_id': id }, new_item, upsert=False, safe=True)
 
     def delete(self, db_name, collection_name, id):
         '''Delete an item, what should I return?'''
@@ -312,6 +319,11 @@ class ItemHandler(access.BaseHandler):
             raise HTTPError(403, 'delete item not permitted (%s)' % self.checkAccessKeyMessage)
         
         collection = self.mongo_conn[db_name][collection_name]
+        if access.Owner in self.allowedMode:
+            old_item = collection.find_one({ '_id': id })
+            if not old_item or old_item['OwnerEmail'] != self.get_current_user()['email']:
+                raise HTTPError(403, 'update not permitted (not owner)')
+            
         collection.remove( { '_id' : id }, safe=True )
         #self.write('{ "result": "OK" }');
 
