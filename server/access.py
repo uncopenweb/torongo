@@ -26,13 +26,11 @@ Read = set('rR')
 RestrictedRead = set('R')
 Update = set('u')
 Delete = set('d')
-DropCollection = set('D')
-List = set('L')
 Upload = set('U')
 
-modeSet = Create | Read | Update | Delete | DropCollection | List | Upload
+modeSet = Create | Read | Update | Delete | Upload
 collectionSet = Create | Read | Update | Delete | Upload
-dbSet = DropCollection | List
+dbSet = Read | Delete
 
 KeyDuration = timedelta(1, 0) # one day
 
