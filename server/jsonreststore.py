@@ -109,7 +109,7 @@ class DatabaseHandler(access.BaseHandler):
         if collection_name:
             raise HTTPError(400, 'db does not exist')
             
-        if not self.checkAccessKey(db_name, '*', access.List):
+        if not self.checkAccessKey(db_name, '*', access.Read):
             raise HTTPError(403, 'listing not permitted (%s)' % self.checkAccessKeyMessage)
         db = self.mongo_conn[db_name]
         names = db.collection_names()
@@ -155,10 +155,9 @@ class DatabaseHandler(access.BaseHandler):
 
     def delete(self, db_name, collection_name):
         '''Drop the collection'''
-        if not self.checkAccessKey(db_name, '*', access.DropCollection):
+        if not self.checkAccessKey(db_name, '*', access.Delete):
             raise HTTPError(403, 'drop collection not permitted (%s)' % self.checkAccessKeyMessage)
         self.mongo_conn[db_name].drop_collection(collection_name)
-        self.write('ok')        
         
 # handle requests without an id
 class CollectionHandler(access.BaseHandler):
@@ -325,7 +324,6 @@ class ItemHandler(access.BaseHandler):
                 raise HTTPError(403, 'update not permitted (not owner)')
             
         collection.remove( { '_id' : id }, safe=True )
-        #self.write('{ "result": "OK" }');
 
 class TestHandler(access.BaseHandler):
     def get(self, flag):

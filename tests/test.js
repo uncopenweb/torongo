@@ -30,46 +30,6 @@ var combine = function(a) {
     return all;
 };
 
-function doDrop(then) {
-    var def = uow.getDatabase({
-        'database': 'test',
-        'collection': '*',
-        'mode': 'DL'
-    });
-    def.addCallback(function(db) {
-        db.fetch({
-            query: { '_id': 'test' },
-            onItem: function(item) {
-                db.deleteItem(item);
-            },
-            onComplete: function(items) {
-                then();
-            },
-            onError: function() {
-            }
-        });
-    });
-}
-
-function doInit(then) {
-    var def = uow.getDatabase({
-        'database': 'test',
-        'collection': 'test',
-        'mode': 'c' });
-    def.addCallback(function(db) {
-        dojo.forEach(['foo', 'bar', 'fee', 'baa' ], function(n, i) {
-            db.newItem({'word': n, 'value': i});
-        });
-        db.save({
-            onComplete: function() {
-                then();
-            },
-            onError: function() {
-            }
-        });
-    });
-}
-
 function doTest(description, mode, theTest) {
     test(description, function() {
         stop();
@@ -126,7 +86,7 @@ function validateFetch(description, key, value) {
     });
 }
 
-function DropTest(description, mode) {
+function DropTest(description) {
     test(description, function() {
         stop();
         dojo.xhrGet({
@@ -134,14 +94,10 @@ function DropTest(description, mode) {
             sync: true
         });
             
-        var def = uow.getDatabase({
-                'database': 'test',
-                'collection': '*',
-                'mode': mode
-            });
+        var def = uow.manageDatabase('test');
         def.addCallback(function(db) {
-            var D = isOK(mode, 'D') && loggedIn;
-            var L = isOK(mode, 'L') && loggedIn;
+            var D = loggedIn;
+            var L = loggedIn;
 
             db.fetch( { 
                 query: { _id: 'test' },
@@ -336,6 +292,7 @@ function main1(user) {
     });
     
     // test getMode
+
     dojo.forEach(modes, function(mode) {
         var msg = dojo.replace('Returned mode with {0} loggedIn == {1}', [ mode, loggedIn ]);
         var func;
@@ -356,11 +313,10 @@ function main1(user) {
         }
         doTest(msg, mode, func);
     });
-    
-    dojo.forEach(['DL', 'crud', 'L', 'D'], function(mode) {
-        DropTest('Drop collection ' + mode, mode);
-    });
-    
+
+    DropTest('Drop collection');
+
+
     // test delete
     dojo.forEach(modes, function(mode) {
         var msg = dojo.replace('Delete with mode {0} loggedIn == {1}', [ mode, loggedIn ]);
@@ -409,7 +365,7 @@ function main1(user) {
             });
         });
     });
-    
+
     start();
 
 }

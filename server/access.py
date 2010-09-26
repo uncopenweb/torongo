@@ -26,12 +26,12 @@ Read = set('rR')
 RestrictedRead = set('R')
 Update = set('u')
 Delete = set('d')
-DropCollection = set('D')
-List = set('L')
 Upload = set('U')
 Owner = set('O')
 
-modeSet = Create | Read | Update | Delete | DropCollection | List | Upload | Owner
+modeSet = Create | Read | Update | Delete | Upload | Owner
+collectionSet = Create | Read | Update | Delete | Upload
+dbSet = Read | Delete
 
 KeyDuration = timedelta(1, 0) # one day
 
@@ -118,7 +118,11 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         # get the user so we can check permissions
         user = self.get_current_user()
         # restrict requested modes to legal ones
-        requested_mode = set(modestring) & modeSet
+        requested_mode = set(modestring)
+        if collection == '*':
+            requested_mode &= dbSet
+        else:
+            requested_mode &= collectionSet
         
         # connect to the Admin db
         db = self.mongo_conn[AdminDbName]
