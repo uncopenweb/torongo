@@ -258,10 +258,10 @@ class CollectionHandler(access.BaseHandler):
         except ValueError, e:
             raise HTTPError(400, unicode(e));
 
+        self.validateSchema(db_name, collection_name, item)
+        
         id = newId()
         item['_id'] = id
-        
-        self.validateSchema(db_name, collection_name, item)
         
         collection.insert(item, safe=True)
         # this path should get encoded only one place, fix this
@@ -301,9 +301,11 @@ class ItemHandler(access.BaseHandler):
             new_item = json.loads(s, object_hook=pymongo.json_util.object_hook)
         except ValueError, e:
             raise HTTPError(400, unicode(e));
-        # if limited fields were given to this user, merge others in here
+        # pull _id before validating the schema
+        del new_item['_id']
         self.validateSchema(db_name, collection_name, new_item)
-        collection.update({ '_id': new_item['_id'] }, new_item, upsert=False, safe=True)
+        new_item['_id'] = id
+        collection.update({ '_id': id }, new_item, upsert=False, safe=True)
 
     def delete(self, db_name, collection_name, id):
         '''Delete an item, what should I return?'''
