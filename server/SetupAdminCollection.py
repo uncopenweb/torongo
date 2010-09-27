@@ -59,10 +59,6 @@ rolodex = '''
     "type": "object",
     "description": "A rolodex object",
     "properties": {
-        "_id": {
-            "type": "string",
-            "maxLength": 64
-        },
         "firstName": {
             "type": "string",
             "maxLength": 25
@@ -80,10 +76,6 @@ status = '''{
     "type": "object",
     "description": "A status object",
     "properties": {
-        "_id": {
-            "type": "string",
-            "maxLength": 64
-        },
         "dt": { "type": "string",
                 "maxLength": 64 },
         "from": { "type": "string",
@@ -95,10 +87,6 @@ status = '''{
 test = '''{
     "type": "object",
     "properties": {
-        "_id": {
-            "type": "string",
-            "maxLength": 64
-        },
         "word": { "type": "string", "maxLength": 25 },
         "value": { "type": "integer" }
     },
