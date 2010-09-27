@@ -14,11 +14,6 @@
     "collection": "rolodex",
     "permission": "rc" },
     
-  { "role": "user", 
-    "database": "catalog",
-    "collection": "rolodex",
-    "permission": "rc" },
-    
   { "role": "identified",
     "database": "catalog",
     "collection": "rolodex",
@@ -35,11 +30,6 @@
     "permission": "rc" },
     
   { "role": "author", 
-    "database": "catalog",
-    "collection": "status",
-    "permission": "rc" },
-    
-  { "role": "user", 
     "database": "catalog",
     "collection": "status",
     "permission": "rc" },
