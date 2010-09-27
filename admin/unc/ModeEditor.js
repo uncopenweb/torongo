@@ -121,11 +121,7 @@ dojo.declare('unc.ModeEditor', [ dijit._Widget, dijit._Templated ], {
 
         self.dbName = self.name.attr('value');
         
-        uow.getDatabase({
-            database: self.dbName,
-            collection: '*',
-            mode: 'L'
-        }).then(function(s) { 
+        uow.manageDatabase(self.dbName).then(function(s) { 
             self.collectionStore = s;
             return s.Fetch({ query: {} });
         }).then(function(collections) {
