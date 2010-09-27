@@ -155,9 +155,12 @@ function Create(mode, valid) {
 }
 
 
-function Update(mode, valid) {
+function Update(mode, valid, word) {
+    if (!word) {
+        word = 'foo';
+    }
     return function(db) {
-        var pass = isOK(mode, 'u') && valid && loggedIn;
+        var pass = isOK(mode, 'u') && valid && loggedIn && (word != 'another' || isOK(mode, 'O'));
         var fpass = isOK(mode, 'r');
         var src = valid ? goodItem : badItem;
         function onFetchComplete(items, request) {
@@ -178,7 +181,7 @@ function Update(mode, valid) {
         }
             
         db.fetch({
-            query: { 'word': 'foo' }, 
+            query: { 'word': word }, 
             onComplete: onFetchComplete,
             onError: function() {
                 ok(!fpass, 'fetch should fail');
@@ -223,7 +226,7 @@ function RestrictedRead(mode, key) {
                 start();
             },
             onError: function() {
-                ok(!pass, 'fetch should fail');
+                ok(!pass, 'fetch should not fail');
                 start();
             }
         });
@@ -290,9 +293,8 @@ function main1(user) {
     var modes = dojo.map(combine(['c' , 'r', 'u', 'd']), function(m) {
         return m.join('');
     });
-    
+
     // test getMode
-/*
     dojo.forEach(modes, function(mode) {
         var msg = dojo.replace('Returned mode with {0} loggedIn == {1}', [ mode, loggedIn ]);
         var func;
@@ -314,7 +316,7 @@ function main1(user) {
         doTest(msg, mode, func);
     });
 
-    DropTest('Drop collection');
+    //DropTest('Drop collection');
 
 
     // test delete
@@ -334,7 +336,7 @@ function main1(user) {
         var msg = dojo.replace('Read with mode {0} loggedIn == {1}', [ mode, loggedIn ]);
         doTest(msg, mode, Read(mode));
     });
-    
+
     // test restricted read
     dojo.forEach(['r', 'R'], function(mode) {
         dojo.forEach(['foo', 'baa', 'f*', 'b*', 'fo*' ], function(key) {
@@ -342,7 +344,7 @@ function main1(user) {
             doTest(msg, mode, RestrictedRead(mode, key));
         });
     });
-*/
+
     // test create and update
     dojo.forEach(['Create', 'Update'], function(func) {
         dojo.forEach(modes, function(mode) {
@@ -366,6 +368,10 @@ function main1(user) {
         });
     });
 
+    // test updating records owned by others
+    doTest('Update of others record without override', 'ru', Update('ur', true, 'another'));
+    doTest('Update of others record with override', 'urO', Update('urO', true, 'another'));
+    
     start();
 
 }
