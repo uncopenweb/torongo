@@ -20,10 +20,10 @@ import random
 import urllib
 import optparse
 import access
-import sys
 import logging
 import myLogging
 import time
+import sys
 
 def newId():
     '''Use the mongo ID mechanism but convert them to strings'''
@@ -260,9 +260,11 @@ class CollectionHandler(access.BaseHandler):
 
         self.validateSchema(db_name, collection_name, item)
         
+        # add meta items outside schema
         id = newId()
         item['_id'] = id
-        
+        item[access.OwnerKey] = self.getUserId()
+
         collection.insert(item, safe=True)
         # this path should get encoded only one place, fix this
         self.set_header('Location', '/data/%s/%s/%s' % (db_name, collection_name, id))
@@ -301,10 +303,29 @@ class ItemHandler(access.BaseHandler):
             new_item = json.loads(s, object_hook=pymongo.json_util.object_hook)
         except ValueError, e:
             raise HTTPError(400, unicode(e));
-        # pull _id before validating the schema
-        del new_item['_id']
+        # remove meta items that are not in schema
+        new_item.pop('_id', '')
+        new_owner = new_item.pop(access.OwnerKey, '')
+        
+        # validate schema
         self.validateSchema(db_name, collection_name, new_item)
+        
+        # insert meta info
         new_item['_id'] = id
+        if not access.Override & self.allowedMode:
+            new_item[access.OwnerKey] = self.getUserId()
+            old_item = collection.find_one({ '_id': id })
+            if not old_item:
+                raise HTTPError(403, 'update not permitted (does not exist)')
+            if (access.OwnerKey in old_item and
+                old_item[access.OwnerKey] != new_item[access.OwnerKey]):
+                raise HTTPError(403, 'update not permitted (not owner)')
+                
+        elif self.isDeveloper():
+            new_item[access.OwnerKey] = new_owner or self.getUserId()
+        else:
+            new_item[access.OwnerKey] = self.getUserId()
+            
         collection.update({ '_id': id }, new_item, upsert=False, safe=True)
 
     def delete(self, db_name, collection_name, id):
@@ -313,6 +334,14 @@ class ItemHandler(access.BaseHandler):
             raise HTTPError(403, 'delete item not permitted (%s)' % self.checkAccessKeyMessage)
         
         collection = self.mongo_conn[db_name][collection_name]
+        if not access.Override & self.allowedMode:
+            old_item = collection.find_one({ '_id': id })
+            if not old_item:
+                raise HTTPError(403, 'delete item does not exist')
+            if (access.OwnerKey not in old_item or
+                old_item[access.OwnerKey] != self.getUserId()):
+                raise HTTPError(403, 'delete not permitted (not owner)')
+
         collection.remove( { '_id' : id }, safe=True )
 
 class TestHandler(access.BaseHandler):
@@ -323,8 +352,18 @@ class TestHandler(access.BaseHandler):
             collection = db['test']
             
             for value,word in enumerate(['foo', 'bar', 'fee', 'baa', 'baa', 'bar']):
-                collection.insert({ 'word': word, 'value': value, '_id': newId() }, safe=True)
-            
+                collection.insert({
+                    'word': word, 
+                    'value': value, 
+                    '_id': newId(),
+                    access.OwnerKey: self.getUserId() }, safe=True)
+                    
+            collection.insert({
+                'word': 'another',
+                'value': 42,
+                '_id': newId(),
+                access.OwnerKey: 'some.one@else' }, safe=True)
+                
             self.write('ok')
             
         elif re.match(r'\d+', flag):

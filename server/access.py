@@ -17,6 +17,7 @@ import httplib
 import traceback
 import re
 import logging
+import sys
 
 localIP = re.compile(r'127\.0\.[01]\.1$')
 
@@ -26,10 +27,14 @@ Read = set('rR')
 RestrictedRead = set('R')
 Update = set('u')
 Delete = set('d')
+Override = set('O') # allow writing records owned by others
+
 Upload = set('U')
 
-modeSet = Create | Read | Update | Delete | Upload
-collectionSet = Create | Read | Update | Delete | Upload
+OwnerKey = '_owner' # key in the schema to store the owner
+
+modeSet = Create | Read | Update | Delete | Override
+collectionSet = Create | Read | Update | Delete | Override
 dbSet = Read | Delete
 
 KeyDuration = timedelta(1, 0) # one day
@@ -50,6 +55,9 @@ def matchIP(ip, pattern):
 class BaseHandler(mongo_util.MongoRequestHandler):
     '''Manage user cookie'''
     def get_current_user(self):
+        if hasattr(self, 'user'):
+            return self.user
+            
         user_json = self.get_secure_cookie("user")
         if not user_json:
             result = { 'email' : None }
@@ -59,32 +67,34 @@ class BaseHandler(mongo_util.MongoRequestHandler):
                 logging.warning('no email in user: %s' % repr(result))
                 result['email'] = None
         logging.debug('user: %s' % repr(result))
+        self.user = result
         return result
+        
+    def getUserId(self):
+        if hasattr(self, 'user'):
+            return self.user['email']
+        return self.get_current_user()['email']
         
     def isDeveloper(self, user=None, role=None):
         '''Return true for local developers'''
-        if user is None:
-            user = self.get_current_user()
-        
-        if role is None:
-            role = self.getRole(user)
-        
-        if role not in [ 'developer' ]:
-            return False
-        return True   
+        return self.getRole() in [ 'developer' ]
 
-    def makeSignature(self, db, collection, user, modebits, timebits):
+    def makeSignature(self, *args):
         self.require_setting("cookie_secret", "secure cookies")
         signature = hmac.new(self.application.settings["cookie_secret"], 
-                             db + collection + modebits + timebits, 
+                             ''.join([ str(arg) for arg in args ]), 
                              hashlib.sha1).hexdigest()
         return signature
         
-    def getRole(self, user = None, db = None):
-        if user is None:
-            user = self.get_current_user()
+    def getRole(self, userId = None, db = None):
+        if hasattr(self, 'role'):
+            return self.role
             
-        if user['email'] is None:
+        if userId is None:
+            userId = self.getUserId()
+        
+        if not userId:
+            self.role = 'anonymous'
             return 'anonymous'
             
         # connect to the Admin db
@@ -93,19 +103,17 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         
         # fetch a role for this user
         Developers = db['Developers']
-        info = Developers.find_one( { 'user': user['email'] } )
+        info = Developers.find_one( { 'user': userId } )
         if info:
             role = info['role']
         else:
             AccessUsers = db['AccessUsers']
-            info = AccessUsers.find_one( { 'user': user['email'] } )
+            info = AccessUsers.find_one( { 'user': userId } )
             if info and info['role'] not in [ 'developer' ]:
                 role = info['role']
-            elif user['email'] is None: # not logged in
-                role = 'anonymous'
             else:
                 role = 'identified' # logged in but not specifically given a role
-            
+        self.role = role
         return role
 
 
@@ -115,7 +123,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         Note: We only lookup the user Role and Permissions here. Later we trust the key.
         '''
         # get the user so we can check permissions
-        user = self.get_current_user()
+        userId = self.getUserId()
         # restrict requested modes to legal ones
         requested_mode = set(modestring)
         if collection == '*':
@@ -126,7 +134,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         # connect to the Admin db
         db = self.mongo_conn[AdminDbName]
         
-        role = self.getRole(user, db)
+        role = self.getRole(userId, db)
         
         # fetch permissions for this role
         AccessModes = db['AccessModes']
@@ -134,12 +142,12 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         perms = AccessModes.find_one( { 'role': role, 
                                         'database': dbName, 
                                         'collection': collection } )
-                                        
+        print >>sys.stderr, role, dbName, collection, perms
         if dbName == 'admin':
             permission = ''
             
         elif dbName == 'Admin' and collection == 'Developers':
-            if role == "developer" and user.get('email', '') == 'gary.bishop.unc@gmail.com':
+            if role == "developer" and  userId == 'gary.bishop.unc@gmail.com':
                 permission = requested_mode
             else:
                 permission = ''
@@ -153,20 +161,21 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         elif perms:
             permission = perms['permission']
             
-        elif self.isDeveloper(user, role):
+        elif role in [ 'developer' ]:
             permission = requested_mode # developers get their wish
             
         else:
             permission = '' # others get nothing
                 
         # allowed is the intersection between requested and permitted
-        allowed_mode = requested_mode & set(permission)
+        self.allowedMode = requested_mode & set(permission)
+
         # include field restrictions here
-        modebits = ''.join(allowed_mode)
+        modebits = ''.join(self.allowedMode)
         timebits = '%x' % int(datetime.now().strftime('%y%m%d%H%M%S'))
         # construct the signed result
-        key = '%s-%s-%s' % (modebits, timebits, self.makeSignature(dbName, collection, user, modebits,
-                            timebits))
+        key = '%s-%s-%s' % (modebits, timebits, self.makeSignature(dbName, collection, 
+                               userId, modebits, timebits))
         return key
 
     def checkAccessKey(self, db, collection, mode, key=None):
@@ -181,8 +190,8 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         except ValueError:
             self.checkAccessKeyMessage = 'bad authorization header'
             return False
-        user = self.get_current_user()
-        if signature != self.makeSignature(db, collection, user, modebits, timebits):
+        userId = self.getUserId()
+        if signature != self.makeSignature(db, collection, userId, modebits, timebits):
             self.checkAccessKeyMessage = 'invalid signature'
             return False
         timebits = str(int(timebits, 16))
@@ -190,8 +199,8 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         if delay > KeyDuration:
             self.checkAccessKeyMessage = 'key expired'
             return False
-        allowedMode = set(modebits) & modeSet
-        result = (allowedMode & mode)
+        self.allowedMode = set(modebits) & modeSet
+        result = (self.allowedMode & mode)
         if not result:
             self.checkAccessKeyMessage = 'Mode not in allowed set'
         return result
@@ -202,7 +211,8 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         if not info:
             return
         try:
-            jsonschema.validate(item, json.loads(info['schema']))
+            schema = json.loads(info['schema'])
+            jsonschema.validate(item, schema)
         except ValueError, e:
             raise HTTPError(403, e.message)
         
@@ -260,7 +270,7 @@ class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
             self.finish()
         elif id == '/user':
             user = self.get_current_user()
-            user['role'] = self.getRole(user)
+            user['role'] = self.getRole()
             s = json.dumps(user)
             self.set_header('Content-length', len(s))
             self.set_header('Content-type', 'application/json')
