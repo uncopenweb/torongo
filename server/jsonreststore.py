@@ -23,6 +23,7 @@ import access
 import logging
 import myLogging
 import time
+import sys
 
 def newId():
     '''Use the mongo ID mechanism but convert them to strings'''
@@ -260,10 +261,9 @@ class CollectionHandler(access.BaseHandler):
         id = newId()
         item['_id'] = id
         
+        if access.Owner & self.flags:
+            item[access.OwnerKey] = self.get_current_user()['email']
         self.validateSchema(db_name, collection_name, item)
-        
-        if self.allowedMode & access.Owner:
-            item['owner'] = self.get_current_user()['email']
         
         collection.insert(item, safe=True)
         # this path should get encoded only one place, fix this
@@ -304,12 +304,13 @@ class ItemHandler(access.BaseHandler):
             new_item['_id'] = id
         except ValueError, e:
             raise HTTPError(400, unicode(e));
-        # if limited fields were given to this user, merge others in here
-        self.validateSchema(db_name, collection_name, new_item)
-        if self.allowedMode & access.Owner:
+        if access.Owner & self.flags and not (access.Developer & self.flags):
             old_item = collection.find_one({ '_id': id })
-            if not old_item or old_item['OwnerEmail'] != new_item['OwnerEmail']:
+            if (not old_item or 
+                access.OwnerKey not in old_item or 
+                old_item[access.OwnerKey] != new_item[access.OwnerKey]):
                 raise HTTPError(403, 'update not permitted (not owner)')
+        self.validateSchema(db_name, collection_name, new_item)
         collection.update({ '_id': id }, new_item, upsert=False, safe=True)
 
     def delete(self, db_name, collection_name, id):
@@ -318,9 +319,11 @@ class ItemHandler(access.BaseHandler):
             raise HTTPError(403, 'delete item not permitted (%s)' % self.checkAccessKeyMessage)
         
         collection = self.mongo_conn[db_name][collection_name]
-        if access.Owner in self.allowedMode:
+        if access.Owner & self.flags and not (access.Developer & self.flags):
             old_item = collection.find_one({ '_id': id })
-            if not old_item or old_item['OwnerEmail'] != self.get_current_user()['email']:
+            if (not old_item or 
+                access.OwnerKey not in old_item or
+                old_item[access.OwnerKey] != self.get_current_user()['email']):
                 raise HTTPError(403, 'update not permitted (not owner)')
             
         collection.remove( { '_id' : id }, safe=True )
@@ -333,8 +336,12 @@ class TestHandler(access.BaseHandler):
             collection = db['test']
             
             for value,word in enumerate(['foo', 'bar', 'fee', 'baa', 'baa', 'bar']):
-                collection.insert({ 'word': word, 'value': value, '_id': newId() }, safe=True)
-            
+                collection.insert({
+                    'word': word, 
+                    'value': value, 
+                    '_id': newId(),
+                    access.OwnerKey: self.get_current_user()['email'] }, safe=True)
+                    
             self.write('ok')
             
         elif re.match(r'\d+', flag):

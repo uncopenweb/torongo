@@ -17,6 +17,7 @@ import httplib
 import traceback
 import re
 import logging
+import sys
 
 localIP = re.compile(r'127\.0\.[01]\.1$')
 
@@ -27,9 +28,15 @@ RestrictedRead = set('R')
 Update = set('u')
 Delete = set('d')
 Upload = set('U')
-Owner = set('O')
 
-modeSet = Create | Read | Update | Delete | Upload | Owner
+# flags to indicate special states
+Owner = set('O') # enforce record ownership
+Developer = set('D') # user is a developer
+flagSet = Owner | Developer
+
+OwnerKey = '_OwnerID' # key in the schema to store the owner
+
+modeSet = Create | Read | Update | Delete | Upload
 collectionSet = Create | Read | Update | Delete | Upload
 dbSet = Read | Delete
 
@@ -53,7 +60,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
     def get_current_user(self):
         user_json = self.get_secure_cookie("user")
         if not user_json:
-            result = { 'email' : None }
+            result = { 'email' : '' }
         else:
             result = tornado.escape.json_decode(user_json)
             if 'email' not in result:
@@ -74,10 +81,10 @@ class BaseHandler(mongo_util.MongoRequestHandler):
             return False
         return True   
 
-    def makeSignature(self, db, collection, user, modebits, timebits):
+    def makeSignature(self, *args):
         self.require_setting("cookie_secret", "secure cookies")
         signature = hmac.new(self.application.settings["cookie_secret"], 
-                             db + collection + modebits + timebits, 
+                             ''.join(args), 
                              hashlib.sha1).hexdigest()
         return signature
         
@@ -85,7 +92,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         if user is None:
             user = self.get_current_user()
             
-        if user['email'] is None:
+        if not user['email']:
             return 'anonymous'
             
         # connect to the Admin db
@@ -135,7 +142,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         perms = AccessModes.find_one( { 'role': role, 
                                         'database': dbName, 
                                         'collection': collection } )
-                                        
+        print >>sys.stderr, role, dbName, collection, perms
         if dbName == 'admin':
             permission = ''
             
@@ -162,20 +169,26 @@ class BaseHandler(mongo_util.MongoRequestHandler):
                 
         # allowed is the intersection between requested and permitted
         allowed_mode = requested_mode & set(permission)
-        if role not in [ 'developer' ]:
-            schemas = self.mongo_conn[AdminDbName]['Schemas']
-            info = schemas.find_one({ 'database': db, 'collection': collection })
-            if info:
-                schema = json.loads(info['schema'])
-                if 'OwnerEmail' in schema['properties']:
-                    allowed_mode = allowed_mode | Owner
+        # add owner flag if schema says we should
+
+        schemas = self.mongo_conn[AdminDbName]['Schemas']
+        info = schemas.find_one({ 'database': dbName, 'collection': collection })
+        flags = set()
+        if info:
+            schema = json.loads(info['schema'])
+            if OwnerKey in schema['properties']:
+                flags |= Owner
+        # add developer flag
+        if role == 'developer':
+            flags |= Developer
 
         # include field restrictions here
         modebits = ''.join(allowed_mode)
+        flagbits = ''.join(flags)
         timebits = '%x' % int(datetime.now().strftime('%y%m%d%H%M%S'))
         # construct the signed result
-        key = '%s-%s-%s' % (modebits, timebits, self.makeSignature(dbName, collection, user, modebits,
-                            timebits))
+        key = '%s-%s-%s-%s' % (modebits, flagbits, timebits, self.makeSignature(dbName, collection, 
+                               user['email'], modebits, flagbits, timebits))
         return key
 
     def checkAccessKey(self, db, collection, mode, key=None):
@@ -186,12 +199,12 @@ class BaseHandler(mongo_util.MongoRequestHandler):
             self.checkAccessKeyMessage = 'missing authorization header'
             return None
         try:
-            modebits, timebits, signature = key.split('-')
+            modebits, flagbits, timebits, signature = key.split('-')
         except ValueError:
             self.checkAccessKeyMessage = 'bad authorization header'
             return False
         user = self.get_current_user()
-        if signature != self.makeSignature(db, collection, user, modebits, timebits):
+        if signature != self.makeSignature(db, collection, user['email'], modebits, flagbits, timebits):
             self.checkAccessKeyMessage = 'invalid signature'
             return False
         timebits = str(int(timebits, 16))
@@ -200,6 +213,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
             self.checkAccessKeyMessage = 'key expired'
             return False
         self.allowedMode = set(modebits) & modeSet
+        self.flags = set(flagbits) & flagSet
         result = (self.allowedMode & mode)
         if not result:
             self.checkAccessKeyMessage = 'Mode not in allowed set'

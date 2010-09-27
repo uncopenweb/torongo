@@ -4,7 +4,7 @@ goodItem = { 'word': 'good',
 badItem = { 'word': 'bad',
             'badkey': 'this is not allowed'
           };
-
+          
 function isOK(mode, letter) {
     return mode.indexOf(letter) >= 0;
 }
@@ -39,9 +39,9 @@ function doTest(description, mode, theTest) {
         });
             
         var def = uow.getDatabase({
-                'database': 'test',
-                'collection': 'test',
-                'mode': mode
+                database: 'test',
+                collection: 'test',
+                mode: mode
             });
         def.addCallback(theTest);
         def.addErrback(function(data) {
@@ -283,16 +283,16 @@ function Delete(mode) {
 }
 
 function main1(user) {
-    var id = user.email;
-    loggedIn = id !== null;
-    dojo.byId('qunit-header').innerHTML = 'UOW Unit Tests by ' + id;
+    var role = user.role;
+    loggedIn = role != 'anonymous';
+    dojo.byId('qunit-header').innerHTML = 'UOW Unit Tests by ' + role;
 
     var modes = dojo.map(combine(['c' , 'r', 'u', 'd']), function(m) {
         return m.join('');
     });
     
     // test getMode
-
+/*
     dojo.forEach(modes, function(mode) {
         var msg = dojo.replace('Returned mode with {0} loggedIn == {1}', [ mode, loggedIn ]);
         var func;
@@ -342,7 +342,7 @@ function main1(user) {
             doTest(msg, mode, RestrictedRead(mode, key));
         });
     });
-
+*/
     // test create and update
     dojo.forEach(['Create', 'Update'], function(func) {
         dojo.forEach(modes, function(mode) {
