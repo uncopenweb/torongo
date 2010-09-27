@@ -24,7 +24,7 @@
         },
         "permission": {
             "type": "string",
-            "description": "Mode string [crudDL]*.",
+            "description": "Mode string [crudR]*.",
             "title": "Modes",
             "maxLength": 8
         }
