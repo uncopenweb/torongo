@@ -35,7 +35,10 @@ dojo.declare('uow.data.MongoStore', [dojox.data.JsonRestStore], {
         dojo.mixin(Args, args);
         args = Args;
         var qs = {};
-        if (args.query && typeof(args.query) != 'undefined') {
+        if (args.query && typeof(args.query) == 'string') { // fetchItemByIdentity
+            return this.inherited(arguments);
+        }
+        if (args.query && typeof(args.query) == 'object') {
             qs.mq = encodeURIComponent(dojo.toJson(args.query));
         }
         if (args.sort && typeof(args.sort) != 'undefined') {
