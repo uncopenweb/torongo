@@ -10,7 +10,10 @@ import tornado.web
 from tornado.web import HTTPError
 import pymongo
 import pymongo.json_util
-
+try:
+    import pymongo.objectid
+except ImportError:
+    pass
 import mongo_util
 import os
 import json
