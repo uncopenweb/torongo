@@ -320,7 +320,7 @@ function main1(user) {
 
 
     // test delete
-    dojo.forEach(modes, function(mode) {
+    dojo.forEach(/*modes*/['rd'], function(mode) {
         var msg = dojo.replace('Delete with mode {0} loggedIn == {1}', [ mode, loggedIn ]);
         doTest(msg, mode, Delete(mode));
         var permission = isOK(mode, 'd') && isOK(mode, 'r') && loggedIn;
@@ -330,7 +330,7 @@ function main1(user) {
             validateFetch('foo should be present', 'foo', 0);
         }
     });
-    
+
     // test read
     dojo.forEach(modes, function(mode) {
         var msg = dojo.replace('Read with mode {0} loggedIn == {1}', [ mode, loggedIn ]);
@@ -371,7 +371,7 @@ function main1(user) {
     // test updating records owned by others
     doTest('Update of others record without override', 'ru', Update('ur', true, 'another'));
     doTest('Update of others record with override', 'urO', Update('urO', true, 'another'));
-    
+
     start();
 
 }
