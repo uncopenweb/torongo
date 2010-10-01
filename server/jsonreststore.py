@@ -284,7 +284,7 @@ class ItemHandler(access.BaseHandler):
         collection = self.mongo_conn[db_name][collection_name]
         
         # restrict fields here
-        item = collection.find_one({'_id':id})
+        item = collection.find_one(id)
         s = json.dumps(item, default=pymongo.json_util.default)
         s = s.replace('"_ref":', '"$ref":') # restore $ref
         self.set_header('Content-length', len(s))
@@ -314,7 +314,7 @@ class ItemHandler(access.BaseHandler):
         new_item['_id'] = id
         if not access.Override & self.allowedMode:
             new_item[access.OwnerKey] = self.getUserId()
-            old_item = collection.find_one({ '_id': id })
+            old_item = collection.find_one(id)
             if not old_item:
                 raise HTTPError(403, 'update not permitted (does not exist)')
             if (access.OwnerKey in old_item and
@@ -335,7 +335,7 @@ class ItemHandler(access.BaseHandler):
         
         collection = self.mongo_conn[db_name][collection_name]
         if not access.Override & self.allowedMode:
-            old_item = collection.find_one({ '_id': id })
+            old_item = collection.find_one(id)
             if not old_item:
                 raise HTTPError(403, 'delete item does not exist')
             if (access.OwnerKey not in old_item or
