@@ -341,7 +341,7 @@ class ItemHandler(access.BaseHandler):
             old_item = collection.find_one(id)
             if not old_item:
                 raise HTTPError(403, 'delete item does not exist')
-            if (access.OwnerKey not in old_item or
+            if (access.OwnerKey in old_item and
                 old_item[access.OwnerKey] != self.getUserId()):
                 raise HTTPError(403, 'delete not permitted (not owner)')
 
