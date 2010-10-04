@@ -321,6 +321,7 @@ class ItemHandler(access.BaseHandler):
             if not old_item:
                 raise HTTPError(403, 'update not permitted (does not exist)')
             if (access.OwnerKey in old_item and
+                old_item[access.OwnerKey] and
                 old_item[access.OwnerKey] != new_item[access.OwnerKey]):
                 raise HTTPError(403, 'update not permitted (not owner)')
                 
