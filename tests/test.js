@@ -94,7 +94,7 @@ function DropTest(description) {
             sync: true
         });
             
-        var def = uow.manageDatabase('test');
+        var def = uow.manageDatabase({ database: 'test'});
         def.addCallback(function(db) {
             var D = loggedIn;
             var L = loggedIn;
