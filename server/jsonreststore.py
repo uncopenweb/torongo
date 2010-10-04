@@ -315,7 +315,7 @@ class ItemHandler(access.BaseHandler):
         
         # insert meta info
         new_item['_id'] = id
-        if not access.Override & self.allowedMode:
+        if False and not access.Override & self.allowedMode:
             new_item[access.OwnerKey] = self.getUserId()
             old_item = collection.find_one(id)
             if not old_item:
@@ -338,7 +338,7 @@ class ItemHandler(access.BaseHandler):
             raise HTTPError(403, 'delete item not permitted (%s)' % self.checkAccessKeyMessage)
         
         collection = self.mongo_conn[db_name][collection_name]
-        if not access.Override & self.allowedMode:
+        if False and not access.Override & self.allowedMode:
             old_item = collection.find_one(id)
             if not old_item:
                 raise HTTPError(403, 'delete item does not exist')
