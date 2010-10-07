@@ -21,6 +21,8 @@ dojo.declare('uow.data.MongoStore', [dojox.data.JsonRestStore], {
             this.accessKey = myKey;
             var myGetRequest = function(id, args) {
                 var request = _getRequest(id, args);
+                // take the key off the path before using it.
+                request.url = request.url.replace(/^[^$]+\$/, '');
                 request.headers['Authorization'] = myKey;
                 return request;
             };
