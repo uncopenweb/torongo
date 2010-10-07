@@ -93,3 +93,43 @@ dojo.declare('uow.data.MongoStore', [dojox.data.JsonRestStore], {
 
     // @todo add methods for dealing with collections
 });
+
+// Gets a MongoStore instance (like dojox.data.JSONRestStore)
+uow.data.getDatabase = function(args) {
+    var defargs = { idAttribute: '_id',
+                    mode: 'crud' };
+    args = args || {};
+    args = dojo.mixin(defargs, args);
+    var xhr = {
+        url: '/data/_auth',
+        handleAs: 'json',
+        postData: dojo.toJson({
+            database: args.database,
+            collection: args.collection,
+            mode: args.mode
+        }),
+        headers: { "Content-Type": "application/json" }
+    };
+
+    var def = new dojo.Deferred();
+    dojo.xhrPost(xhr).addCallback(function(response) {
+        args.target = response.key + '$' + response.url; // add the key to overcome caching of servicesy
+        args.accessKey = response.key;
+        def.callback(new uow.data.MongoStore(args));
+    }).addErrback(function(err) {
+        def.errback(err);
+    });
+    return def;
+};
+
+// Return a store for listing and deleting collections from a database
+uow.data.manageDatabase = function(args) {
+    args = args || {};
+    return uow.data.getDatabase({
+        database: args.database,
+        collection: '*',
+        mode: 'rd'
+    });
+};
+
+
