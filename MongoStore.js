@@ -88,10 +88,117 @@ dojo.declare('uow.data.MongoStore', [dojox.data.JsonRestStore], {
     getMode: function() {
         // return the permission string actually granted
         return this.accessKey.split('-')[0]
+    },
+    fetchOne: function(args) {
+        var def = new dojo.Deferred();
+        this.fetch({
+            query : args.query,
+            onComplete: function(items) {
+                if(items.length == 1) {
+                    var item = items[0];
+                    console.log('invoking callback with one item');
+                    def.callback(item);
+                } else {
+                    def.errback(items.length);
+                }
+            },
+            onError: function(err) {
+                def.errback(err);
+            },
+            scope: this
+        });
+        return def;
+    },
+    updateOne: function(args) {
+        var def = new dojo.Deferred();
+        this.fetchOne(args).then(dojo.hitch(this, function(item) {
+            for(var attr in args.data) {
+                // have to use setValue to set dirty flag
+                this.setValue(item, attr, args.data[attr]);
+            }
+            if(args.save) {
+                this.save({
+                    onComplete: function() {
+                        def.callback(item);
+                    },
+                    onError: function(err) {
+                        def.errback(err);
+                    }
+                });
+            } else {
+                def.callback(item);
+            }
+        }), function(err) {
+            def.errback(err);
+        });
+        return def;
+    },
+    deleteOne: function(args) {
+        var def = new dojo.Deferred();
+        this.fetchOne(args).then(dojo.hitch(this, function(item) {
+            this.deleteItem(item);
+            if(args.save) {
+                this.save({
+                    onComplete: function() {
+                        def.callback(item);
+                    },
+                    onError: function(err) {
+                        def.errback(err);
+                    }
+                });
+            } else {
+                def.callback(item);
+            }
+        }), function(err) {
+            def.errback(err);
+        });
+        return def;
+    },
+    putOne: function(args) {
+        var def = new dojo.Deferred();
+        // fetch success case
+        this.fetchOne(args).then(dojo.hitch(this, function(item) {
+            for(var attr in args.data) {
+                // have to use setValue to set dirty flag
+                this.setValue(item, attr, args.data[attr]);
+            }
+            if(args.save) {
+                this.save({
+                    onComplete: function() {
+                        def.callback(item);
+                    },
+                    onError: function(err) {
+                        def.errback(err);
+                    }
+                });
+            } else {
+                def.callback(item);
+            }
+        }),
+        // fetch error case
+        dojo.hitch(this, function(err) {
+            if(err === 0) {
+                // create new item
+                var item = this.newItem(args.data);
+                if(args.save) {
+                    this.save({
+                        onComplete: function() {
+                            def.callback(item);
+                        },
+                        onError: function(err) {
+                            def.errback(err);
+                        }
+                    });
+                } else {
+                    def.callback(item);
+                }                
+            } else {
+                // more than one match
+                def.errback(err);
+            }
+        }));
+        return def;
     }
-
-
-    // @todo add methods for dealing with collections
 });
 
 // Gets a MongoStore instance (like dojox.data.JSONRestStore)
@@ -138,4 +245,14 @@ uow.data.getUser = function(args) {
         url: '/data/_auth/user',
         handleAs: 'json'
     } );
+};
+
+// Create an empty collection
+uow.data.touchCollection = function(args) {
+    
+};
+
+// Set the permissions for a user role in a db/collection
+uow.data.setAccess = function(args) {
+    
 };
