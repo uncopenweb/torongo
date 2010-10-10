@@ -132,4 +132,10 @@ uow.data.manageDatabase = function(args) {
     });
 };
 
-
+// Ask the server to return the current user
+uow.data.getUser = function(args) {
+    return dojo.xhrGet( {
+        url: '/data/_auth/user',
+        handleAs: 'json'
+    } );
+};
