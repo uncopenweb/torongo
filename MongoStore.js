@@ -249,7 +249,39 @@ uow.data.getUser = function(args) {
 
 // Create an empty collection
 uow.data.touchCollection = function(args) {
-    
+    var def = new dojo.Deferred();
+    uow.data.getDatabase({
+        database : args.database,
+        collection : args.collection
+    }).then(function(db) {
+        var item = db.newItem({foo : 'bar'});
+        //console.log(db.isItem(item));
+        //console.log(item);
+        db.save({
+            onComplete: function() {
+                //console.log(db.isItem(item));
+                //console.log(item);
+                db.deleteItem(item);
+                db.save({
+                    onComplete: function() {
+                        //console.log('finished delete');
+                        def.callback(db);
+                    },
+                    onError: function() {
+                        //console.log('failed delete');
+                        // error deleting, but collection does exist now
+                        def.callback(db);
+                    }
+                });
+            },
+            onError: function(err) {
+                def.errback(err);
+            }
+        });
+    }, function(err) {
+        def.errback(err);
+    });
+    return def;
 };
 
 // Set the permissions for a user role in a db/collection
