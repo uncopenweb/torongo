@@ -96,7 +96,6 @@ dojo.declare('uow.data.MongoStore', [dojox.data.JsonRestStore], {
             onComplete: function(items) {
                 if(items.length == 1) {
                     var item = items[0];
-                    console.log('invoking callback with one item');
                     def.callback(item);
                 } else {
                     def.errback(items.length);
@@ -178,7 +177,8 @@ dojo.declare('uow.data.MongoStore', [dojox.data.JsonRestStore], {
         // fetch error case
         dojo.hitch(this, function(err) {
             if(err === 0) {
-                // create new item
+                // create new item from query + data
+                dojo.mixin(args.data, args.query);
                 var item = this.newItem(args.data);
                 if(args.save) {
                     this.save({
@@ -286,5 +286,100 @@ uow.data.touchCollection = function(args) {
 
 // Set the permissions for a user role in a db/collection
 uow.data.setAccess = function(args) {
-    
+    var def = new dojo.Deferred();
+    uow.data.getDatabase({
+        database : 'Admin',
+        collection : 'AccessModes',
+        mode : 'crud'
+    }).then(function(db) {
+        var key = {
+            database : args.database,
+            collection : args.collection,
+            role : args.role
+        };
+        if(args.permission === null) {
+            return db.deleteOne({
+                query: key,
+                save: true
+            });
+        } else {
+            return db.putOne({
+                query : key,
+                data : {permission : args.permission},
+                save: true
+            });
+        }
+    }, function(err) {
+        def.errback(err);
+    }).then(function(item) {
+        def.callback(item);
+    }, function(err) {
+        def.errback(err);
+    });
+    return def;
+};
+
+// Set the role for user in a db/collection
+uow.data.setRole = function(args) {
+    var def = new dojo.Deferred();
+    uow.data.getDatabase({
+        database : 'Admin',
+        collection : 'AccessUsers',
+        mode : 'crud'
+    }).then(function(db) {
+        var key = {user : args.user};
+        if(args.role === null) {
+            return db.deleteOne({
+                query: key,
+                save: true
+            });
+        } else {
+            return db.putOne({
+                query : key,
+                data : {role : args.role},
+                save: true
+            });
+        }
+    }, function(err) {
+        def.errback(err);
+    }).then(function(item) {
+        def.callback(item);
+    }, function(err) {
+        def.errback(err);
+    });
+    return def;
+};
+
+// Set the schema for a db/collection
+uow.data.setSchema = function(args) {
+    var def = new dojo.Deferred();
+    uow.data.getDatabase({
+        database : 'Admin',
+        collection : 'Schemas',
+        mode : 'crud'
+    }).then(function(db) {
+        var key = {
+            database : args.database,
+            collection : args.collection
+        };
+        if(args.schema === null) {
+            return db.deleteOne({
+                query: key,
+                save: true
+            });
+        } else {
+            return db.putOne({
+                query : key,
+                data : {schema : args.schema},
+                save: true
+            });
+        }
+    }, function(err) {
+        def.errback(err);
+    }).then(function(item) {
+        def.callback(item);
+    }, function(err) {
+        def.errback(err);
+    });
+    return def;
 };
