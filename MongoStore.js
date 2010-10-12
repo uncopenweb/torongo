@@ -23,6 +23,21 @@ dojo.declare('uow.data.MongoStore', [dojox.data.JsonRestStore], {
                 var request = _getRequest(id, args);
                 // take the key off the path before using it.
                 request.headers['Authorization'] = myKey;
+                // fix a bug in dojo range handling
+                if (args && (args.start >= 0 || args.count >= 0)) {
+                    var start = args.start || 0;
+                    var range = 'items=' + start + '-';
+                    if (args.count !== undefined && args.count != Infinity) {
+                        if (args.count === 0) {
+                             // minimum is one because last-pos must be >= than first-pos
+                             // according to 14.35 in http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html
+                            range += start;
+                        } else {
+                            range += args.count + start - 1;
+                        }
+                    }
+                    request.headers.Range = range;
+                }
                 return request;
             };
             this.service._getRequest = myGetRequest;
