@@ -22,7 +22,6 @@ dojo.declare('uow.data.MongoStore', [dojox.data.JsonRestStore], {
             var myGetRequest = function(id, args) {
                 var request = _getRequest(id, args);
                 // take the key off the path before using it.
-                request.url = request.url.replace(/^[^$]+\$/, '');
                 request.headers['Authorization'] = myKey;
                 return request;
             };
@@ -220,7 +219,7 @@ uow.data.getDatabase = function(args) {
 
     var def = new dojo.Deferred();
     dojo.xhrPost(xhr).addCallback(function(response) {
-        args.target = response.key + '$' + response.url; // add the key to overcome caching of servicesy
+        args.target = response.url;
         args.accessKey = response.key;
         def.callback(new uow.data.MongoStore(args));
     }).addErrback(function(err) {

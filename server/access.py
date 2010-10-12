@@ -171,7 +171,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         self.allowedMode = requested_mode & set(permission)
 
         # include field restrictions here
-        modebits = ''.join(self.allowedMode)
+        modebits = ''.join(sorted(self.allowedMode))
         timebits = '%x' % int(datetime.now().strftime('%y%m%d%H%M%S'))
         # construct the signed result
         key = '%s-%s-%s' % (modebits, timebits, self.makeSignature(dbName, collection, 
@@ -306,9 +306,9 @@ class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
         mode = args['mode']
         key = self.makeAccessKey(db, collection, mode)
         if collection == '*':
-            url = '/data/%s/' % db
+            url = '/data/%s-%s/' % (mode, db)
         else:
-            url = '/data/%s/%s/' % (db, collection)
+            url = '/data/%s-%s/%s/' % (mode, db, collection)
         self.write({ 'url' : url,
                      'key' : key })
 

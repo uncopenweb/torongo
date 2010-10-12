@@ -290,7 +290,7 @@ function main1(user) {
     loggedIn = role != 'anonymous';
     dojo.byId('qunit-header').innerHTML = 'UOW Unit Tests by ' + role;
 
-    var modes = dojo.map(combine(['c' , 'r', 'u', 'd']), function(m) {
+    var modes = dojo.map(combine(['c' , 'd', 'r', 'u' ]), function(m) {
         return m.join('');
     });
 
