@@ -176,7 +176,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         # construct the signed result
         key = '%s-%s-%s' % (modebits, timebits, self.makeSignature(dbName, collection, 
                                userId, modebits, timebits))
-        return key
+        return key, modebits
 
     def checkAccessKey(self, db, collection, mode, key=None):
         '''Validate an access key'''
@@ -304,7 +304,7 @@ class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
         db = args['database']
         collection = args['collection']
         mode = args['mode']
-        key = self.makeAccessKey(db, collection, mode)
+        key, mode = self.makeAccessKey(db, collection, mode)
         if collection == '*':
             url = '/data/%s-%s/' % (mode, db)
         else:
