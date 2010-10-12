@@ -101,7 +101,7 @@ dojo.declare('uow.data.MongoStore', [dojox.data.JsonRestStore], {
     },
     getMode: function() {
         // return the permission string actually granted
-        return this.accessKey.split('-')[0]
+        return this.accessKey.split('-')[0];
     },
     fetchOne: function(args) {
         var def = new dojo.Deferred();
