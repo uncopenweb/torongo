@@ -108,7 +108,7 @@ def doQuery(item, spec):
 
 # handle requests with only a db name
 class DatabaseHandler(access.BaseHandler):
-    def get(self, db_name, collection_name):
+    def get(self, mode, db_name, collection_name):
         '''Handle queries for collection names'''
         if collection_name:
             raise HTTPError(400, 'db does not exist')
@@ -117,7 +117,7 @@ class DatabaseHandler(access.BaseHandler):
             raise HTTPError(403, 'listing not permitted (%s)' % self.checkAccessKeyMessage)
         db = self.mongo_conn[db_name]
         names = db.collection_names()
-        result = [ { "_id": name, "url": "/data/%s/%s/" % (db_name, name) }
+        result = [ { "_id": name, "url": "/data/%s-%s/%s/" % (mode, db_name, name) }
                    for name in names
                    if name != 'system.indexes' ]
 
@@ -157,7 +157,7 @@ class DatabaseHandler(access.BaseHandler):
         self.set_header('Content-type', 'application/json')
         self.write(s)
 
-    def delete(self, db_name, collection_name):
+    def delete(self, mode, db_name, collection_name):
         '''Drop the collection'''
         if not self.checkAccessKey(db_name, '*', access.Delete):
             raise HTTPError(403, 'drop collection not permitted (%s)' % self.checkAccessKeyMessage)
@@ -166,7 +166,7 @@ class DatabaseHandler(access.BaseHandler):
 # handle requests without an id
 class CollectionHandler(access.BaseHandler):
     @tornado.web.asynchronous
-    def get(self, db_name, collection_name):
+    def get(self, mode, db_name, collection_name):
         '''Handle queries'''
         readMode = self.checkAccessKey(db_name, collection_name, access.Read)
         restrict = readMode == access.RestrictedRead
@@ -247,7 +247,7 @@ class CollectionHandler(access.BaseHandler):
         self.write(s)
         self.finish()
 
-    def post(self, db_name, collection_name):
+    def post(self, mode, db_name, collection_name):
         '''Create a new item and return the single item not an array'''
         if not self.checkAccessKey(db_name, collection_name, access.Create):
             raise HTTPError(403, 'create not permitted (%s)' % self.checkAccessKeyMessage)
@@ -270,7 +270,7 @@ class CollectionHandler(access.BaseHandler):
 
         collection.insert(item, safe=True)
         # this path should get encoded only one place, fix this
-        self.set_header('Location', '/data/%s/%s/%s' % (db_name, collection_name, id))
+        self.set_header('Location', '/data/%s-%s/%s/%s' % (mode, db_name, collection_name, id))
         s = json.dumps(item, default=pymongo.json_util.default)
         s = s.replace('"_ref":', '"$ref":') # restore $ref
         self.set_header('Content-length', len(s))
@@ -279,7 +279,7 @@ class CollectionHandler(access.BaseHandler):
 
 # handle requests with an id
 class ItemHandler(access.BaseHandler):
-    def get(self, db_name, collection_name, id):
+    def get(self, mode, db_name, collection_name, id):
         '''Handle requests for single items'''
         if not self.checkAccessKey(db_name, collection_name, access.Read):
             raise HTTPError(403, 'read not permitted (%s)' % self.checkAccessKeyMessage)
@@ -294,7 +294,7 @@ class ItemHandler(access.BaseHandler):
         self.set_header('Content-type', 'application/json')
         self.write(s)
 
-    def put(self, db_name, collection_name, id):
+    def put(self, mode, db_name, collection_name, id):
         '''update an item after an edit, no response?'''
         if not self.checkAccessKey(db_name, collection_name, access.Update):
             raise HTTPError(403, 'update not permitted (%s)' % self.checkAccessKeyMessage)
@@ -332,7 +332,7 @@ class ItemHandler(access.BaseHandler):
             
         collection.update({ '_id': id }, new_item, upsert=False, safe=True)
 
-    def delete(self, db_name, collection_name, id):
+    def delete(self, mode, db_name, collection_name, id):
         '''Delete an item, what should I return?'''
         if not self.checkAccessKey(db_name, collection_name, access.Delete):
             raise HTTPError(403, 'delete item not permitted (%s)' % self.checkAccessKeyMessage)
@@ -412,9 +412,9 @@ def run(port=8888, threads=4, debug=False, static=False, pid=None,
         # why do we need this optional undefined string, explorer seems to be adding it
         # workaround for the bug fixed (we think) by http://trac.dojotoolkit.org/changeset/21041
         # was
-        (r"/data/[a-zA-Z]*-([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)?$", DatabaseHandler),
-        (r"/data/[a-zA-Z]*-([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/$", CollectionHandler),
-        (r"/data/[a-zA-Z]*-([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/([a-f0-9]+)", ItemHandler),
+        (r"/data/([a-zA-Z]*)-([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)?$", DatabaseHandler),
+        (r"/data/([a-zA-Z]*)-([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/$", CollectionHandler),
+        (r"/data/([a-zA-Z]*)-([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/([a-f0-9]+)", ItemHandler),
         (r"/data/_auth(.*)$", access.AuthHandler),
         (r"/data/_test_(reset|\d+)$", TestHandler),
     ], **kwargs)
