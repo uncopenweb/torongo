@@ -117,7 +117,7 @@ class DatabaseHandler(access.BaseHandler):
             raise HTTPError(403, 'listing not permitted (%s)' % self.checkAccessKeyMessage)
         db = self.mongo_conn[db_name]
         names = db.collection_names()
-        result = [ { "_id": name, "url": "/data/%s-%s/%s/" % (mode, db_name, name) }
+        result = [ { "_id": name }
                    for name in names
                    if name != 'system.indexes' ]
 
