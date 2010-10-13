@@ -140,10 +140,13 @@ function Create(mode, valid) {
     return function(db) {
         var pass = isOK(mode, 'c') && valid && loggedIn;
         
-        db.newItem(valid ? goodItem : badItem );
+        var item = db.newItem(valid ? goodItem : badItem );
+        ok(db.isItem(item), 'item belongs to store');
         db.save( {
             'onComplete': function() { 
+                ok(db.isItem(item), 'item still belongs to store');
                 ok(pass, 'write should succeed');
+                ok('_owner' in item, 'item should have owner');
                 start();
             },
             'onError': function() {
@@ -164,7 +167,7 @@ function Update(mode, valid, word) {
         var fpass = isOK(mode, 'r');
         var src = valid ? goodItem : badItem;
         function onFetchComplete(items, request) {
-            // we've got the items, not modify the first
+            // we've got the items, now modify the first
             var item = items[0];
             db.changing(item);
             item = dojo.mixin(item, src);
@@ -316,7 +319,7 @@ function main1(user) {
         doTest(msg, mode, func);
     });
 
-    //DropTest('Drop collection');
+    DropTest('Drop collection');
 
 
     // test delete
