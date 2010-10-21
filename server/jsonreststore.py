@@ -331,6 +331,15 @@ class TestHandler(access.BaseHandler):
             code = int(flag)
             raise HTTPError(code)
             
+class WarningHandler(access.BaseHandler):
+    def post(self):
+        msg = self.request.body
+        logging.warning(msg)
+        s = 'ok'
+        self.set_header('Content-length', len(s))
+        self.set_header('Content-type', 'text/plain')
+        self.write(s)
+        
         
 def generate_secret(seed):
     '''Generate the secret string for hmac'''
@@ -373,6 +382,7 @@ def run(port=8888, threads=4, debug=False, static=False, pid=None,
         (r"/data/([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/([a-f0-9]+)", ItemHandler),
         (r"/data/_auth(.*)$", access.AuthHandler),
         (r"/data/_test_(reset|\d+)$", TestHandler),
+        (r"/data/_warning$", WarningHandler),
     ], **kwargs)
     http_server = tornado.httpserver.HTTPServer(application)
     http_server.listen(port)
