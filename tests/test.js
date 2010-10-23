@@ -51,7 +51,7 @@ function doTest(description, mode, theTest) {
     });
 }
 
-function validateFetch(description, key, value) {
+function validateFetch(description, key, value, owner) {
     test(description, function() {
         stop();
         var def = uow.getDatabase({
@@ -67,6 +67,9 @@ function validateFetch(description, key, value) {
                         ok(items.length > 0, key + ' should be present');
                         equals(items[0].word, key, 'word is correct');
                         equals(items[0].value, value, 'value is correct');
+                        if (owner) {
+                            equals(items[0]._owner, owner, 'owner is correct');
+                        }
                         start();
                     } else {
                         ok(items.length === 0, key + ' should not be present');
@@ -146,7 +149,7 @@ function Create(mode, valid) {
             'onComplete': function() { 
                 ok(db.isItem(item), 'item still belongs to store');
                 ok(pass, 'write should succeed');
-                ok('_owner' in item, 'item should have owner');
+                equals(item._owner, loggedIn, 'owner is current user');
                 start();
             },
             'onError': function() {
@@ -236,27 +239,6 @@ function RestrictedRead(mode, key) {
     };
 }
 
-function fetchIt(db, key, value) {
-            db.fetch( {
-                query: { 'word': key },
-                onComplete: function(items) {
-                    if (value !== false) {
-                        ok(items.length > 0, key + ' should be present');
-                        equals(items[0].word, key, 'word is correct');
-                        equals(items[0].value, value, 'value is correct');
-                        start();
-                    } else {
-                        ok(items.length === 0, key + ' should not be present');
-                        start();
-                    }
-                },
-                onError: function() {
-                    ok(false, 'validateFetch should not fail');
-                    start();
-                }
-            } );
-}
-
 function Delete(mode) {
     return function(db) {
         var pass = isOK(mode, 'd') && loggedIn;
@@ -290,13 +272,12 @@ function Delete(mode) {
 
 function main1(user) {
     var role = user.role;
-    loggedIn = role != 'anonymous';
+    loggedIn = user.email;
     dojo.byId('qunit-header').innerHTML = 'UOW Unit Tests by ' + role;
 
     var modes = dojo.map(combine(['c' , 'd', 'r', 'u' ]), function(m) {
         return m.join('');
     });
-
     // test getMode
     dojo.forEach(modes, function(mode) {
         var msg = dojo.replace('Returned mode with {0} loggedIn == {1}', [ mode, loggedIn ]);
@@ -321,9 +302,8 @@ function main1(user) {
 
     DropTest('Drop collection');
 
-
     // test delete
-    dojo.forEach(/*modes*/['rd'], function(mode) {
+    dojo.forEach(modes, function(mode) {
         var msg = dojo.replace('Delete with mode {0} loggedIn == {1}', [ mode, loggedIn ]);
         doTest(msg, mode, Delete(mode));
         var permission = isOK(mode, 'd') && isOK(mode, 'r') && loggedIn;
@@ -339,7 +319,6 @@ function main1(user) {
         var msg = dojo.replace('Read with mode {0} loggedIn == {1}', [ mode, loggedIn ]);
         doTest(msg, mode, Read(mode));
     });
-
     // test restricted read
     dojo.forEach(['r', 'R'], function(mode) {
         dojo.forEach(['foo', 'baa', 'f*', 'b*', 'fo*' ], function(key) {
@@ -347,7 +326,6 @@ function main1(user) {
             doTest(msg, mode, RestrictedRead(mode, key));
         });
     });
-
     // test create and update
     dojo.forEach(['Create', 'Update'], function(func) {
         dojo.forEach(modes, function(mode) {
@@ -363,7 +341,7 @@ function main1(user) {
                 f = eval(func);
                 doTest(msg, mode, f(mode, valid));
                 if (permission && valid) {
-                    validateFetch('good should be present', 'good', goodItem.value);
+                    validateFetch('good should be present', 'good', goodItem.value, loggedIn);
                 } else {
                     validateFetch('bad should be absent', 'bad', false);
                 }
@@ -374,7 +352,6 @@ function main1(user) {
     // test updating records owned by others
     doTest('Update of others record without override', 'ru', Update('ur', true, 'another'));
     doTest('Update of others record with override', 'urO', Update('urO', true, 'another'));
-
     start();
 
 }
