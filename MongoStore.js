@@ -218,7 +218,7 @@ dojo.declare('uow.data.MongoStore', [dojox.data.JsonRestStore], {
 // Gets a MongoStore instance (like dojox.data.JSONRestStore)
 uow.data.getDatabase = function(args) {
     var defargs = { idAttribute: '_id',
-                    mode: 'crud' };
+                    mode: 'crudO' };
     args = args || {};
     args = dojo.mixin(defargs, args);
     var xhr = {
