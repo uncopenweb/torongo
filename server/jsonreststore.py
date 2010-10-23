@@ -315,20 +315,20 @@ class ItemHandler(access.BaseHandler):
         
         # insert meta info
         new_item['_id'] = id
-        if not access.Override & self.allowedMode:
-            new_item[access.OwnerKey] = self.getUserId()
-            old_item = collection.find_one(id)
-            if not old_item:
-                raise HTTPError(403, 'update not permitted (does not exist)')
-            if (access.OwnerKey in old_item and
-                old_item[access.OwnerKey] and
-                old_item[access.OwnerKey] != new_item[access.OwnerKey]):
-                raise HTTPError(403, 'update not permitted (not owner)')
-                
-        elif self.isDeveloper():
-            new_item[access.OwnerKey] = new_owner or self.getUserId()
+        
+        # check old item
+        old_item = collection.find_one({ '_id': id}, fields = [ access.OwnerKey ])
+        if not old_item:
+            raise HTTPError(403, 'update not permitted (does not exist)')
+        
+        owner = old_item.get(access.OwnerKey, None)
+        
+        if not owner or access.Override & self.allowedMode or owner == self.getUserId():
+            new_item[access.OwnerKey] = owner
+            
         else:
-            new_item[access.OwnerKey] = self.getUserId()
+            raise HTTPError(403, 'update not permitted (not owner)')
+                
             
         collection.update({ '_id': id }, new_item, upsert=False, safe=True)
 
@@ -339,12 +339,11 @@ class ItemHandler(access.BaseHandler):
         
         collection = self.mongo_conn[db_name][collection_name]
         if not access.Override & self.allowedMode:
-            old_item = collection.find_one(id)
+            old_item = collection.find_one({ '_id': id }, fields = [ access.OwnerKey] )
             if not old_item:
                 raise HTTPError(403, 'delete item does not exist')
-            if (access.OwnerKey in old_item and
-                old_item[access.OwnerKey] and
-                old_item[access.OwnerKey] != self.getUserId()):
+            owner = old_item.get(access.OwnerKey, None)
+            if owner and owner != self.getUserId():
                 raise HTTPError(403, 'delete not permitted (not owner)')
 
         collection.remove( { '_id' : id }, safe=True )
