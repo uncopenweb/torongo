@@ -397,3 +397,35 @@ uow.data.setSchema = function(args) {
     });
     return def;
 };
+
+uow.data.warning = function(msg, noAlert) {
+    if (typeof(msg) === 'object') {
+        msg = dojo.toJson(msg);
+    }
+
+    function sendWarning(msg, def, retries) {
+        if (retries <= 0) {
+            if (!noAlert) {
+                alert('Please email gb@cs.unc.edu this message: ' + msg);
+            }
+            def.errback(msg);
+        } else {
+            dojo.xhrPost({
+                url: '/data/_warning',
+                handleAs: 'text',
+                postData: msg,
+                ioPublish: false,
+                load: function(resp) {
+                    def.callback(resp);
+                },
+                error: function(resp) {
+                    setTimeout(function() { sendWarning(msg, def, retries-1); }, 1000);
+                }
+            });
+        }
+    }
+    var def = new dojo.Deferred();
+    sendWarning(msg, def, 10);
+    return def;
+};
+
