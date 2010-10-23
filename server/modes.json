@@ -2,7 +2,7 @@
   { "role": "anonymous",
     "database": "test",
     "collection": "test",
-    "permission": "r" },
+    "permission": "rR" },
 
   { "role": "admin",
     "database": "catalog",
