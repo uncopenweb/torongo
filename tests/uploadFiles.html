@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Upload Media</title>
+    <style type="text/css">
+      @import "http://ajax.googleapis.com/ajax/libs/dojo/1.5/dojo/resources/dojo.css";
+      @import "http://ajax.googleapis.com/ajax/libs/dojo/1.5/dijit/themes/tundra/tundra.css";
+    </style>
+    <script type="text/javascript">
+        var djConfig = {
+            isDebug: false,
+            parseOnLoad: true,
+            baseUrl: './',
+            dojoBlankHtmlUrl: 'blank.html'
+        };
+    </script>
+    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/dojo/1.5/dojo/dojo.xd.js"></script>
+    <script type="text/javascript" src="/libs/uow/trace.js"></script>
+    <script type="text/javascript" src="/libs/uow.js"></script>
+    <script type="text/javascript">
+      dojo.require('dijit.form.Button');
+    </script>
+    <script type="text/javascript" src="uploadFiles.js"></script>
+  </head>
+  <body class="tundra">
+    <p>Upload a media file by providing some tags and the file</p>
+    <p id="messages"></p>
+    <form name="upload" id="upload" method="POST" enctype="multipart/form-data">
+      <input type="text" name="tags">
+      <input type="file" name="file" id="file">
+      <button id="audio" dojoType="dijit.form.Button" type="button">Upload Audio</button>
+      <button id="image" dojoType="dijit.form.Button" type="button">Upload Image</button>
+      <input type="hidden" name="test" value="value">
+    </form>
+  </body>
+</html>
+
