@@ -69,7 +69,7 @@ dojo.declare('uow.data.MongoStore', [dojox.data.JsonRestStore], {
     upload: function(args) {
         // upload a file using io.iframe.send
         // you need to set form, load, and error
-        args.url = '/upload/';
+        args.url = '/Media/upload/';
         args.method = 'post';
         args.content = { 'Authorization': this.accessKey };
         args.handleAs = 'json';

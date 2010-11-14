@@ -68,3 +68,10 @@ class MongoRequestHandler(ThreadedRequestHandler):
         :rtype: object
         '''
         return json.loads(text, object_hook=pymongo.json_util.object_hook)
+
+def newId():
+    '''Use the mongo ID mechanism but convert them to strings'''
+    # Not sure why I prefer the strings, they sure look better than the objects
+    return str(pymongo.objectid.ObjectId())
+
+

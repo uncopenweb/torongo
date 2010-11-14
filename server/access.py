@@ -29,8 +29,6 @@ Update = set('u')
 Delete = set('d')
 Override = set('O') # allow writing records owned by others
 
-Upload = set('U')
-
 OwnerKey = '_owner' # key in the schema to store the owner
 
 modeSet = Create | Read | Update | Delete | Override
@@ -191,6 +189,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
             self.checkAccessKeyMessage = 'bad authorization header'
             return False
         userId = self.getUserId()
+        
         if signature != self.makeSignature(db, collection, userId, modebits, timebits):
             self.checkAccessKeyMessage = 'invalid signature'
             return False

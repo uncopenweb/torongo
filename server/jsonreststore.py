@@ -22,16 +22,13 @@ import string
 import random
 import urllib
 import optparse
-import access
 import logging
-import myLogging
 import time
 import sys
 
-def newId():
-    '''Use the mongo ID mechanism but convert them to strings'''
-    # Not sure why I prefer the strings, they sure look better than the objects
-    return str(pymongo.objectid.ObjectId())
+import access
+import myLogging
+import upload
 
 JSRE = re.compile(r'^/(.*)/([igm]*)$')
 DojoGlob = re.compile(r'[?*]')
@@ -264,7 +261,7 @@ class CollectionHandler(access.BaseHandler):
         self.validateSchema(db_name, collection_name, item)
         
         # add meta items outside schema
-        id = newId()
+        id = mongo_util.newId()
         item['_id'] = id
         item[access.OwnerKey] = self.getUserId()
 
@@ -359,13 +356,13 @@ class TestHandler(access.BaseHandler):
                 collection.insert({
                     'word': word, 
                     'value': value, 
-                    '_id': newId(),
+                    '_id': mongo_util.newId(),
                     access.OwnerKey: self.getUserId() }, safe=True)
                     
             collection.insert({
                 'word': 'another',
                 'value': 42,
-                '_id': newId(),
+                '_id': mongo_util.newId(),
                 access.OwnerKey: 'some.one@else' }, safe=True)
                 
             self.write('ok')
@@ -423,6 +420,7 @@ def run(port=8888, threads=4, debug=False, static=False, pid=None,
         (r"/data/([a-zA-Z]*)-([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)?$", DatabaseHandler),
         (r"/data/([a-zA-Z]*)-([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/$", CollectionHandler),
         (r"/data/([a-zA-Z]*)-([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/([a-f0-9]+)", ItemHandler),
+        (r"/data/_upload/$", upload.UploadHandler),
         (r"/data/_auth(.*)$", access.AuthHandler),
         (r"/data/_test_(reset|\d+)$", TestHandler),
         (r"/data/_warning$", WarningHandler),
@@ -435,7 +433,7 @@ def generate_sample_data(n, host, port):
     import string, random
     docs = [ { 'label' : ''.join(random.sample(string.lowercase, random.randint(2,9))),
                'value': i * 1.1 + 0.01,
-               '_id': newId() }
+               '_id': mongo_util.newId() }
              for i in range(n) ]
     for doc in docs:
         doc['length'] = len(doc['label'])
