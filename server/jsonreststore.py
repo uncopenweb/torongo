@@ -29,6 +29,7 @@ import sys
 import access
 import myLogging
 import upload
+from sanity import sanitize
 
 JSRE = re.compile(r'^/(.*)/([igm]*)$')
 DojoGlob = re.compile(r'[?*]')
@@ -258,7 +259,14 @@ class CollectionHandler(access.BaseHandler):
         except ValueError, e:
             raise HTTPError(400, unicode(e));
 
+        # validate the schema
         self.validateSchema(db_name, collection_name, item)
+        
+        # sanitize
+        try:
+            sanitize(item)
+        except ValueError:
+            raise HTTPError(400, 'HTML field parse failed')
         
         # add meta items outside schema
         id = mongo_util.newId()
@@ -309,6 +317,12 @@ class ItemHandler(access.BaseHandler):
         
         # validate schema
         self.validateSchema(db_name, collection_name, new_item)
+        
+        # sanitize it
+        try:
+            sanitize(new_item)
+        except ValueError:
+            raise HTTPError(400, 'html string parse failed')
         
         # insert meta info
         new_item['_id'] = id
