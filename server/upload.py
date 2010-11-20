@@ -16,7 +16,6 @@ from datetime import datetime
 import shutil
 import magic
 import re
-import sys
 import os
 import traceback
 import subprocess
@@ -24,6 +23,7 @@ import json
 import pymongo
 import mongo_util
 import mad
+from sanity import sanitize
 
 MediaDB = 'Media'
 MediaURL = '/Media/'
@@ -84,7 +84,7 @@ class UploadHandler(access.BaseHandler):
             if not os.path.exists(dirname):
                 os.makedirs(dirname)
             shutil.move(info.fpath, opath)
-        except Exception, e:
+        except Exception:
             return (False, traceback.format_exc(), None)
         finally:
             for f in toRemove:
@@ -96,12 +96,12 @@ class UploadHandler(access.BaseHandler):
         item = {}
         item['width'] = w
         item['height'] = h
-        item['originalName'] = info.fname
-        item['URL'] = upath
-        item['tags'] = info.tags
-        item['title'] = info.title
-        item['description'] = info.description
-        item['creditURL'] = info.creditURL
+        item['originalName'] = sanitize(info.fname)
+        item['URL'] = sanitize(upath)
+        item['tags'] = [ sanitize(tag) for tag in info.tags ]
+        item['title'] = sanitize(info.title)
+        item['description'] = sanitize(info.description)
+        item['creditURL'] = sanitize(info.creditURL)
         user = self.get_current_user()
         item['uploadedBy'] = user['email']
         item['uploadedOn'] = datetime.now().isoformat()
@@ -154,8 +154,7 @@ class UploadHandler(access.BaseHandler):
             mf = mad.MadFile(opath + '.mp3')
             duration = mf.total_time() / 1000.0
             
-        except Exception, e:
-            traceback.print_exc()
+        except Exception:
             return (False, traceback.format_exc(), None)
         finally:
             for f in toRemove:
@@ -164,12 +163,12 @@ class UploadHandler(access.BaseHandler):
                 except:
                     pass
         item = {}
-        item['originalName'] = info.fname
+        item['originalName'] = sanitize(info.fname)
         item['URL'] = upath
-        item['tags'] = info.tags
-        item['title'] = info.title
-        item['description'] = info.description
-        item['creditURL'] = info.creditURL
+        item['tags'] = [ sanitize(tag) for tag in info.tags ]
+        item['title'] = sanitize(info.title)
+        item['description'] = sanitize(info.description)
+        item['creditURL'] = sanitize(info.creditURL)
         user = self.get_current_user()
         item['uploadedBy'] = user['email']
         item['uploadedOn'] = datetime.now().isoformat()
@@ -191,5 +190,6 @@ class UploadHandler(access.BaseHandler):
             self.write(s)
             self.finish()
         else:
+            logging.warning('upload failed: ' + value)
             raise HTTPError(400, value)
 
