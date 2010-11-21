@@ -428,9 +428,6 @@ def run(port=8888, threads=4, debug=False, static=False, pid=None,
     if static:
         kwargs['static_path'] = os.path.join(os.path.dirname(__file__), "../")
     application = mongo_util.MongoApplication([
-        # why do we need this optional undefined string, explorer seems to be adding it
-        # workaround for the bug fixed (we think) by http://trac.dojotoolkit.org/changeset/21041
-        # was
         (r"/data/([a-zA-Z]*)-([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)?$", DatabaseHandler),
         (r"/data/([a-zA-Z]*)-([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/$", CollectionHandler),
         (r"/data/([a-zA-Z]*)-([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/([a-f0-9]+)", ItemHandler),
