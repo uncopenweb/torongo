@@ -397,9 +397,13 @@ class WarningHandler(access.BaseHandler):
         
 def generate_secret(seed):
     '''Generate the secret string for hmac'''
-    random.seed(seed)
-    return ''.join(random.choice(string.letters + string.digits + string.punctuation)
-                   for i in range(100))
+    try:
+        return file('secret', 'rb').read()
+    except IOError:
+        logging.warning('generating secret from seed')
+        random.seed(seed)
+        return ''.join(random.choice(string.letters + string.digits + string.punctuation)
+                       for i in range(100))
 
 def run(port=8888, threads=4, debug=False, static=False, pid=None, 
         mongo_host='127.0.0.1', mongo_port=27017, seed=0):
