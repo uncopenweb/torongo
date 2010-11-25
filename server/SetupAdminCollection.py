@@ -7,6 +7,16 @@ import optparse
 import sys
 import re
 
+parser = optparse.OptionParser(usage='usage: %prog [options] mongohost mongoport')
+parser.add_option("-r", "--reset", dest="reset", action='store_true', default=False,
+    help="reset Admin collections (irreversible!)")
+(options, args) = parser.parse_args()
+if len(args) != 2:
+    parser.error('you must provide the hostname and port number for mongo')
+
+host = args[0]
+port = int(args[1])
+
 def newId():
     '''Use the mongo ID mechanism but convert them to strings'''
     return str(pymongo.objectid.ObjectId())
@@ -28,30 +38,41 @@ def replace(collection, item, **spec):
         return insert(collection, item)
     collection.update({'_id': old['_id']}, item, safe=True);
 
-conn = pymongo.Connection('localhost', port=27000)
+conn = pymongo.Connection(host, port=port)
 
 db = conn[access.AdminDbName]
 
+collections = db.collection_names()
+
 # setup users
-db.drop_collection('Developers')
-userRoles = json.load(file('developers.json', 'r'))
-DE = db['Developers']
-for userRole in userRoles:
-    insert(DE, userRole)
+if options.reset or 'Developers' not in collections:
+    db.drop_collection('Developers')
+    userRoles = json.load(file('developers.json', 'r'))
+    DE = db['Developers']
+    for userRole in userRoles:
+        insert(DE, userRole)
+else:
+    print 'not overwriting Developers'
     
 # setup users
-db.drop_collection('AccessUsers')
-userRoles = json.load(file('users.json', 'r'))
-AU = db['AccessUsers']
-for userRole in userRoles:
-    insert(AU, userRole)
+if options.reset or 'AccessUsers' not in collections:
+    db.drop_collection('AccessUsers')
+    userRoles = json.load(file('users.json', 'r'))
+    AU = db['AccessUsers']
+    for userRole in userRoles:
+        insert(AU, userRole)
+else:
+    print 'not overwriting AccessUsers'
     
 # setup modes
-db.drop_collection('AccessModes')
-modes = json.load(file('modes.json', 'r'))
-AM = db['AccessModes']
-for mode in modes:
-    insert(AM, mode)
+if options.reset or 'AccessModes' not in collections:
+    db.drop_collection('AccessModes')
+    modes = json.load(file('modes.json', 'r'))
+    AM = db['AccessModes']
+    for mode in modes:
+        insert(AM, mode)
+else:
+    print 'not overwriting AccessModes'
 
 # rolodex schema
 rolodex = '''
@@ -106,19 +127,22 @@ def compact(j):
     return j # re.sub(r'\s+', ' ', j)
 
 # setup the Schemas
-db.drop_collection('Schemas')
-sc = db['Schemas']
-insert(sc, { 'database': 'catalog', 'collection': 'rolodex',
-             'schema': compact(rolodex) } )
-insert(sc, { 'database': 'catalog', 'collection': 'status',
-             'schema': compact(status) } )
-insert(sc, { 'database': 'Admin', 'collection': 'AccessUsers',
-             'schema': compact(AccessUsersSchema) } )
-insert(sc, { 'database': 'Admin', 'collection': 'AccessModes',
-             'schema': compact(AccessModesSchema) } )
-insert(sc, { 'database': 'Admin', 'collection': 'Developers',
-             'schema': compact(DevelopersSchema) } )
-insert(sc, { 'database': 'test', 'collection': 'test',
-             'schema': compact(test) });
+if options.reset or 'Schemas' not in collections:
+    db.drop_collection('Schemas')
+    sc = db['Schemas']
+    insert(sc, { 'database': 'catalog', 'collection': 'rolodex',
+                 'schema': compact(rolodex) } )
+    insert(sc, { 'database': 'catalog', 'collection': 'status',
+                 'schema': compact(status) } )
+    insert(sc, { 'database': 'Admin', 'collection': 'AccessUsers',
+                 'schema': compact(AccessUsersSchema) } )
+    insert(sc, { 'database': 'Admin', 'collection': 'AccessModes',
+                 'schema': compact(AccessModesSchema) } )
+    insert(sc, { 'database': 'Admin', 'collection': 'Developers',
+                 'schema': compact(DevelopersSchema) } )
+    insert(sc, { 'database': 'test', 'collection': 'test',
+                 'schema': compact(test) });
+else:
+    print 'not overwriting Schemas'
 
 
