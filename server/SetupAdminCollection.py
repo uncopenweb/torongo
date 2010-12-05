@@ -119,12 +119,7 @@ AccessModesSchema = file('AccessModesSchema.json', 'r').read()
 DevelopersSchema = file('DevelopersSchema.json', 'r').read()
 
 def compact(j):
-    try:
-        json.loads(j)
-    except:
-        print 'bad json'
-        raise
-    return j # re.sub(r'\s+', ' ', j)
+    return json.loads(j)
 
 # setup the Schemas
 if options.reset or 'Schemas' not in collections:

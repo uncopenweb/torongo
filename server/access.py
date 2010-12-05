@@ -210,7 +210,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         if not info:
             return
         try:
-            schema = json.loads(info['schema'])
+            schema = info['schema']
             jsonschema.validate(item, schema)
         except ValueError, e:
             raise HTTPError(403, e.message)
