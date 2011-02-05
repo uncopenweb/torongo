@@ -270,10 +270,7 @@ class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
         elif id == '/user':
             user = self.get_current_user()
             user['role'] = self.getRole()
-            s = json.dumps(user)
-            self.set_header('Content-length', len(s))
-            self.set_header('Content-type', 'application/json')
-            self.write(s)
+            self.write(user)
             self.finish()
 
         else:

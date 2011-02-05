@@ -148,11 +148,11 @@ class DatabaseHandler(access.BaseHandler):
         result = result[start:stop+1]
         
         # send the result
-        self.set_header('Content-range', 'items %d-%d/%d' % (start,stop,Nitems))
+        self.set_header('Content-Range', 'items %d-%d/%d' % (start,stop,Nitems))
         s = json.dumps(result, default=pymongo.json_util.default)
         s = s.replace('"_ref":', '"$ref":') # restore $ref
-        self.set_header('Content-length', len(s))
-        self.set_header('Content-type', 'application/json')
+        self.set_header('Content-Length', len(s))
+        self.set_header('Content-Type', 'text/javascript')
         self.write(s)
 
     def delete(self, mode, db_name, collection_name):
@@ -237,11 +237,11 @@ class CollectionHandler(access.BaseHandler):
         rows, start, stop, Nitems = result
         
         # send the result
-        self.set_header('Content-range', 'items %d-%d/%d' % (start,stop,Nitems))
+        self.set_header('Content-Range', 'items %d-%d/%d' % (start,stop,Nitems))
         s = json.dumps(rows, default=pymongo.json_util.default)
         s = s.replace('"_ref":', '"$ref":') # restore $ref
-        self.set_header('Content-length', len(s))
-        self.set_header('Content-type', 'application/json')
+        self.set_header('Content-Length', len(s))
+        self.set_header('Content-Type', 'text/javascript')
         self.write(s)
         self.finish()
 
@@ -278,8 +278,8 @@ class CollectionHandler(access.BaseHandler):
         self.set_header('Location', '/data/%s-%s/%s/%s' % (mode, db_name, collection_name, id))
         s = json.dumps(item, default=pymongo.json_util.default)
         s = s.replace('"_ref":', '"$ref":') # restore $ref
-        self.set_header('Content-length', len(s))
-        self.set_header('Content-type', 'application/json')
+        self.set_header('Content-Length', len(s))
+        self.set_header('Content-Type', 'text/javascript')
         self.write(s)
 
 # handle requests with an id
@@ -295,8 +295,8 @@ class ItemHandler(access.BaseHandler):
         item = collection.find_one(id)
         s = json.dumps(item, default=pymongo.json_util.default)
         s = s.replace('"_ref":', '"$ref":') # restore $ref
-        self.set_header('Content-length', len(s))
-        self.set_header('Content-type', 'application/json')
+        self.set_header('Content-Length', len(s))
+        self.set_header('Content-Type', 'text/javascript')
         self.write(s)
 
     def put(self, mode, db_name, collection_name, id):
@@ -390,8 +390,8 @@ class WarningHandler(access.BaseHandler):
         msg = self.request.body
         logging.warning(msg)
         s = 'ok'
-        self.set_header('Content-length', len(s))
-        self.set_header('Content-type', 'text/plain')
+        self.set_header('Content-Length', len(s))
+        self.set_header('Content-Type', 'text/plain')
         self.write(s)
         
         
