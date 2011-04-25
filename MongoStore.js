@@ -304,7 +304,7 @@ uow.data.setAccess = function(args) {
     uow.data.getDatabase({
         database : 'Admin',
         collection : 'AccessModes',
-        mode : 'crud'
+        mode : 'Ocrud'
     }).then(function(db) {
         var key = {
             database : args.database,
@@ -339,7 +339,7 @@ uow.data.setRole = function(args) {
     uow.data.getDatabase({
         database : 'Admin',
         collection : 'AccessUsers',
-        mode : 'crud'
+        mode : 'Ocrud'
     }).then(function(db) {
         var key = {user : args.user};
         if(args.role === null) {
@@ -370,7 +370,7 @@ uow.data.setSchema = function(args) {
     uow.data.getDatabase({
         database : 'Admin',
         collection : 'Schemas',
-        mode : 'crud'
+        mode : 'Ocrud'
     }).then(function(db) {
         var key = {
             database : args.database,
