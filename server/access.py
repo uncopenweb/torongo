@@ -49,13 +49,13 @@ def matchIP(ip, pattern):
         shift = (32 - int(bits))
         return (n0 >> shift) == (n1 >> shift)
     return False
-        
+
 class BaseHandler(mongo_util.MongoRequestHandler):
     '''Manage user cookie'''
     def get_current_user(self):
         if hasattr(self, 'user'):
             return self.user
-            
+
         user_json = self.get_secure_cookie("user")
         if not user_json:
             result = { 'email' : None }
@@ -67,38 +67,38 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         logging.debug('user: %s' % repr(result))
         self.user = result
         return result
-        
+
     def getUserId(self):
         if hasattr(self, 'user'):
             return self.user['email']
         return self.get_current_user()['email']
-        
+
     def isDeveloper(self, user=None, role=None):
         '''Return true for local developers'''
         return self.getRole() in [ 'developer' ]
 
     def makeSignature(self, *args):
         self.require_setting("cookie_secret", "secure cookies")
-        signature = hmac.new(self.application.settings["cookie_secret"], 
-                             ''.join([ str(arg) for arg in args ]), 
+        signature = hmac.new(self.application.settings["cookie_secret"],
+                             ''.join([ str(arg) for arg in args ]),
                              hashlib.sha1).hexdigest()
         return signature
-        
+
     def getRole(self, userId = None, db = None):
         if hasattr(self, 'role'):
             return self.role
-            
+
         if userId is None:
             userId = self.getUserId()
-        
+
         if not userId:
             self.role = 'anonymous'
             return 'anonymous'
-            
+
         # connect to the Admin db
         if db is None:
             db = self.mongo_conn[AdminDbName]
-        
+
         # fetch a role for this user
         Developers = db['Developers']
         info = Developers.find_one( { 'user': userId } )
@@ -117,7 +117,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
 
     def makeAccessKey(self, dbName, collection, modestring):
         '''Create an access key for a database/collection pair with the requested mode
-        
+
         Note: We only lookup the user Role and Permissions here. Later we trust the key.
         '''
         # get the user so we can check permissions
@@ -128,43 +128,43 @@ class BaseHandler(mongo_util.MongoRequestHandler):
             requested_mode &= dbSet
         else:
             requested_mode &= collectionSet
-        
+
         # connect to the Admin db
         db = self.mongo_conn[AdminDbName]
-        
+
         role = self.getRole(userId, db)
-        
+
         # fetch permissions for this role
         AccessModes = db['AccessModes']
         # look for the role, db, collection triple
-        perms = AccessModes.find_one( { 'role': role, 
-                                        'database': dbName, 
+        perms = AccessModes.find_one( { 'role': role,
+                                        'database': dbName,
                                         'collection': collection } )
         print >>sys.stderr, role, dbName, collection, perms
         if dbName == 'admin':
             permission = ''
-            
+
         elif dbName == 'Admin' and collection == 'Developers':
-            if role == "developer" and  userId == 'gary.bishop.unc@gmail.com':
+            if role == "developer" and  userId in ['gary.bishop.unc@gmail.com', 'gb@cs.unc.edu']:
                 permission = requested_mode
             else:
                 permission = ''
-                
+
         elif dbName == 'Admin' and collection == 'AccessUsers':
             if role in [ 'developer', 'admin' ]:
                 permission = requested_mode
             else:
                 permission = ''
-                
+
         elif perms:
             permission = perms['permission']
-            
+
         elif role in [ 'developer' ]:
             permission = requested_mode # developers get their wish
-            
+
         else:
             permission = '' # others get nothing
-                
+
         # allowed is the intersection between requested and permitted
         self.allowedMode = requested_mode & set(permission)
 
@@ -172,7 +172,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         modebits = ''.join(sorted(self.allowedMode))
         timebits = '%x' % int(datetime.now().strftime('%y%m%d%H%M%S'))
         # construct the signed result
-        key = '%s-%s-%s' % (modebits, timebits, self.makeSignature(dbName, collection, 
+        key = '%s-%s-%s' % (modebits, timebits, self.makeSignature(dbName, collection,
                                userId, modebits, timebits))
         return key, modebits
 
@@ -189,7 +189,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
             self.checkAccessKeyMessage = 'bad authorization header'
             return False
         userId = self.getUserId()
-        
+
         if signature != self.makeSignature(db, collection, userId, modebits, timebits):
             self.checkAccessKeyMessage = 'invalid signature'
             return False
@@ -203,7 +203,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         if not result:
             self.checkAccessKeyMessage = 'Mode not in allowed set'
         return result
-        
+
     def validateSchema(self, db, collection, item):
         schemas = self.mongo_conn[AdminDbName]['Schemas']
         info = schemas.find_one({ 'database': db, 'collection': collection })
@@ -214,7 +214,7 @@ class BaseHandler(mongo_util.MongoRequestHandler):
             jsonschema.validate(item, schema)
         except ValueError, e:
             raise HTTPError(403, e.message)
-        
+
     def get_error_html(self, status_code, **kwargs):
         '''Override their error message to give developers more info'''
         description = httplib.responses[status_code]
