@@ -54,7 +54,7 @@ class UploadHandler(access.BaseHandler):
         if info.ftype.startswith('image/'):
             worker = self._imageWorker
             medium = 'Image'
-        elif info.ftype.startswith('audio/'):
+        elif info.ftype.startswith('audio/') or info.ftype == "video/ogg": # firefox ogg is video
             worker = self._audioWorker
             medium = 'Audio'
         else:
