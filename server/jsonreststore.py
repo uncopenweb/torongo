@@ -24,7 +24,6 @@ import urllib
 import optparse
 import logging
 import time
-import sys
 
 import access
 import myLogging
@@ -34,18 +33,19 @@ import upload
 JSRE = re.compile(r'^/(.*)/([igm]*)$')
 DojoGlob = re.compile(r'[?*]')
 
+
 def TranslateQuery(obj):
     '''Hack to translate the json coded object into a mongo query'''
     # some validation might be done in here as well
 
     if type(obj) == dict:
         # translate all elements of a dictionary
-        for key,val in obj.iteritems():
+        for key, val in obj.iteritems():
             obj[key] = TranslateQuery(val)
         return obj
     elif type(obj) == list:
         # translate all elements of a list, I don't think this happens but doesn't cost much
-        for i,val in enumerate(obj):
+        for i, val in enumerate(obj):
             obj[i] = TranslateQuery(val)
         return obj
     elif type(obj) == unicode:
@@ -54,9 +54,9 @@ def TranslateQuery(obj):
         if m:
             flags = 0
             for letter in m.group(2):
-                flags |= { 'm': re.M,
-                           'g': re.G,
-                           'i': re.I } [ letter ]
+                flags |= {'m': re.M,
+                          'g': re.G,
+                          'i': re.I}[letter]
             try:
                 obj = re.compile(m.group(1), flags)
             except re.error:
@@ -74,28 +74,30 @@ def TranslateQuery(obj):
             try:
                 obj = re.compile(q)
             except re.error:
-                pass # just pass the original string along if it won't compile
+                pass  # just pass the original string along if it won't compile
 
         return obj
     else:
         # pass anything else on
         return obj
 
+
 def RestrictQuery(query):
     restricted = {}
-    for key,value in query.iteritems():
+    for key, value in query.iteritems():
         if key.startswith('$'):
             continue
-        if type(value) in [ unicode, int, float ]:
+        if type(value) in [unicode, int, float]:
             restricted[key] = value
     return restricted
+
 
 def doQuery(item, spec):
     '''simulate a mongo query on the collection names'''
     if not spec:
         return True
     if type(spec) == dict:
-        for key,value in spec.iteritems():
+        for key, value in spec.iteritems():
             if key not in item:
                 return False
             if value == item[key] or hasattr(value, 'search') and value.search(unicode(item[key])):
@@ -103,6 +105,7 @@ def doQuery(item, spec):
             else:
                 return False
     return True
+
 
 # handle requests with only a db name
 class DatabaseHandler(access.BaseHandler):
@@ -115,9 +118,9 @@ class DatabaseHandler(access.BaseHandler):
             raise HTTPError(403, 'listing not permitted (%s)' % self.checkAccessKeyMessage)
         db = self.mongo_conn[db_name]
         names = db.collection_names()
-        result = [ { "_id": name }
+        result = [{"_id": name}
                    for name in names
-                   if name != 'system.indexes' ]
+                   if name != 'system.indexes']
 
         # handle query parameters
         spec = {}
@@ -129,12 +132,12 @@ class DatabaseHandler(access.BaseHandler):
             try:
                 q = json.loads(q)
             except ValueError, e:
-                raise HTTPError(400, unicode(e));
+                raise HTTPError(400, unicode(e))
             # convert to format expected by mongo
             spec = TranslateQuery(q)
 
         # simulate what mongo would do to select the names...
-        result = [ item for item in result if doQuery(item, spec) ]
+        result = [item for item in result if doQuery(item, spec)]
 
         # see how much we are to send
         Nitems = len(result)
@@ -145,12 +148,12 @@ class DatabaseHandler(access.BaseHandler):
         else:
             start = 0
             stop = Nitems
-        result = result[start:stop+1]
+        result = result[start:stop + 1]
 
         # send the result
-        self.set_header('Content-Range', 'items %d-%d/%d' % (start,stop,Nitems))
+        self.set_header('Content-Range', 'items %d-%d/%d' % (start, stop, Nitems))
         s = json.dumps(result, default=pymongo.json_util.default)
-        s = s.replace('"_ref":', '"$ref":') # restore $ref
+        s = s.replace('"_ref":', '"$ref":')  # restore $ref
         self.set_header('Content-Length', len(s))
         self.set_header('Content-Type', 'text/javascript')
         self.write(s)
@@ -160,6 +163,7 @@ class DatabaseHandler(access.BaseHandler):
         if not self.checkAccessKey(db_name, '*', access.Delete):
             raise HTTPError(403, 'drop collection not permitted (%s)' % self.checkAccessKeyMessage)
         self.mongo_conn[db_name].drop_collection(collection_name)
+
 
 # handle requests without an id
 class CollectionHandler(access.BaseHandler):
@@ -186,7 +190,7 @@ class CollectionHandler(access.BaseHandler):
             try:
                 q = json.loads(q)
             except ValueError, e:
-                raise HTTPError(400, unicode(e));
+                raise HTTPError(400, unicode(e))
             # convert to format expected by mongo
             findSpec = TranslateQuery(q)
             if restrict:
@@ -196,7 +200,7 @@ class CollectionHandler(access.BaseHandler):
         sortSpec = []
         if not restrict and 'ms' in self.request.arguments:
             for s in self.request.arguments['ms'][0].split(','):
-                sortSpec.append((s[1:], { '+':pymongo.ASCENDING, '-':pymongo.DESCENDING }[s[0]]))
+                sortSpec.append((s[1:], {'+': pymongo.ASCENDING, '-': pymongo.DESCENDING}[s[0]]))
 
         # see how much we are to send
         r = re.compile(r'items=(\d+)-(\d+)').match(self.request.headers.get('Range', ''))
@@ -218,10 +222,10 @@ class CollectionHandler(access.BaseHandler):
             cursor = cursor.sort(sortSpec)
         Nitems = cursor.count()
         if stop is None:
-            stop = Nitems-1
+            stop = Nitems - 1
         else:
-            stop = min(stop, Nitems-1)
-        cursor = cursor.skip(start).limit(stop-start+1)
+            stop = min(stop, Nitems - 1)
+        cursor = cursor.skip(start).limit(stop - start + 1)
 
         if restrict and Nitems > 1:
             rows = []
@@ -237,9 +241,9 @@ class CollectionHandler(access.BaseHandler):
         rows, start, stop, Nitems = result
 
         # send the result
-        self.set_header('Content-Range', 'items %d-%d/%d' % (start,stop,Nitems))
+        self.set_header('Content-Range', 'items %d-%d/%d' % (start, stop, Nitems))
         s = json.dumps(rows, default=pymongo.json_util.default)
-        s = s.replace('"_ref":', '"$ref":') # restore $ref
+        s = s.replace('"_ref":', '"$ref":')  # restore $ref
         self.set_header('Content-Length', len(s))
         self.set_header('Content-Type', 'text/javascript')
         self.write(s)
@@ -254,10 +258,10 @@ class CollectionHandler(access.BaseHandler):
 
         try:
             s = self.request.body
-            s = s.replace('"$ref":', '"_ref":') # hide $ref
+            s = s.replace('"$ref":', '"_ref":')  # hide $ref
             item = json.loads(s, object_hook=pymongo.json_util.object_hook)
         except ValueError, e:
-            raise HTTPError(400, unicode(e));
+            raise HTTPError(400, unicode(e))
 
         # validate the schema
         self.validateSchema(db_name, collection_name, item)
@@ -277,10 +281,11 @@ class CollectionHandler(access.BaseHandler):
         # this path should get encoded only one place, fix this
         self.set_header('Location', '/data/%s-%s/%s/%s' % (mode, db_name, collection_name, id))
         s = json.dumps(item, default=pymongo.json_util.default)
-        s = s.replace('"_ref":', '"$ref":') # restore $ref
+        s = s.replace('"_ref":', '"$ref":')  # restore $ref
         self.set_header('Content-Length', len(s))
         self.set_header('Content-Type', 'text/javascript')
         self.write(s)
+
 
 # handle requests with an id
 class ItemHandler(access.BaseHandler):
@@ -294,7 +299,7 @@ class ItemHandler(access.BaseHandler):
         # restrict fields here
         item = collection.find_one(id)
         s = json.dumps(item, default=pymongo.json_util.default)
-        s = s.replace('"_ref":', '"$ref":') # restore $ref
+        s = s.replace('"_ref":', '"$ref":')  # restore $ref
         self.set_header('Content-Length', len(s))
         self.set_header('Content-Type', 'text/javascript')
         self.write(s)
@@ -307,13 +312,13 @@ class ItemHandler(access.BaseHandler):
         collection = self.mongo_conn[db_name][collection_name]
         try:
             s = self.request.body
-            s = s.replace('"$ref":', '"_ref":') # restore $ref
+            s = s.replace('"$ref":', '"_ref":')  # restore $ref
             new_item = json.loads(s, object_hook=pymongo.json_util.object_hook)
         except ValueError, e:
-            raise HTTPError(400, unicode(e));
+            raise HTTPError(400, unicode(e))
         # remove meta items that are not in schema
         new_item.pop('_id', '')
-        new_owner = new_item.pop(access.OwnerKey, '')
+        new_item.pop(access.OwnerKey, '')
 
         # validate schema
         self.validateSchema(db_name, collection_name, new_item)
@@ -328,7 +333,7 @@ class ItemHandler(access.BaseHandler):
         new_item['_id'] = id
 
         # check old item
-        old_item = collection.find_one({ '_id': id}, fields = [ access.OwnerKey ])
+        old_item = collection.find_one({'_id': id}, fields=[access.OwnerKey])
         if not old_item:
             raise HTTPError(403, 'update not permitted (does not exist)')
 
@@ -340,8 +345,7 @@ class ItemHandler(access.BaseHandler):
         else:
             raise HTTPError(403, 'update not permitted (not owner)')
 
-
-        collection.update({ '_id': id }, new_item, upsert=False, safe=True)
+        collection.update({'_id': id}, new_item, upsert=False, safe=True)
 
     def delete(self, mode, db_name, collection_name, id):
         '''Delete an item, what should I return?'''
@@ -350,14 +354,15 @@ class ItemHandler(access.BaseHandler):
 
         collection = self.mongo_conn[db_name][collection_name]
         if not access.Override & self.allowedMode:
-            old_item = collection.find_one({ '_id': id }, fields = [ access.OwnerKey] )
+            old_item = collection.find_one({'_id': id}, fields=[access.OwnerKey])
             if not old_item:
                 raise HTTPError(403, 'delete item does not exist')
             owner = old_item.get(access.OwnerKey, None)
             if owner and owner != self.getUserId():
                 raise HTTPError(403, 'delete not permitted (not owner)')
 
-        collection.remove( { '_id' : id }, safe=True )
+        collection.remove({'_id': id}, safe=True)
+
 
 class TestHandler(access.BaseHandler):
     def get(self, flag):
@@ -366,24 +371,25 @@ class TestHandler(access.BaseHandler):
             db.drop_collection('test')
             collection = db['test']
 
-            for value,word in enumerate(['foo', 'bar', 'fee', 'baa', 'baa', 'bar']):
+            for value, word in enumerate(['foo', 'bar', 'fee', 'baa', 'baa', 'bar']):
                 collection.insert({
                     'word': word,
                     'value': value,
                     '_id': mongo_util.newId(),
-                    access.OwnerKey: self.getUserId() }, safe=True)
+                    access.OwnerKey: self.getUserId()}, safe=True)
 
             collection.insert({
                 'word': 'another',
                 'value': 42,
                 '_id': mongo_util.newId(),
-                access.OwnerKey: 'some.one@else' }, safe=True)
+                access.OwnerKey: 'some.one@else'}, safe=True)
 
             self.write('ok')
 
         elif re.match(r'\d+', flag):
             code = int(flag)
             raise HTTPError(code)
+
 
 class WarningHandler(access.BaseHandler):
     def post(self):
@@ -404,6 +410,7 @@ def generate_secret(seed):
         random.seed(seed)
         return ''.join(random.choice(string.letters + string.digits + string.punctuation)
                        for i in range(100))
+
 
 def run(port=8888, threads=4, debug=False, static=False, pid=None,
         mongo_host='127.0.0.1', mongo_port=27017, seed=0):
@@ -427,7 +434,7 @@ def run(port=8888, threads=4, debug=False, static=False, pid=None,
         'cookie_secret': generate_secret(seed),
         'debug': debug,
         'thread_count': threads,
-        'mongo_conn' : conn
+        'mongo_conn': conn
     }
     if static:
         kwargs['static_path'] = os.path.join(os.path.dirname(__file__), "../")
@@ -444,12 +451,14 @@ def run(port=8888, threads=4, debug=False, static=False, pid=None,
     http_server.listen(port)
     tornado.ioloop.IOLoop.instance().start()
 
+
 def generate_sample_data(n, host, port):
-    import string, random
-    docs = [ { 'label' : ''.join(random.sample(string.lowercase, random.randint(2,9))),
+    import string
+    import random
+    docs = [{'label': ''.join(random.sample(string.lowercase, random.randint(2, 9))),
                'value': i * 1.1 + 0.01,
-               '_id': mongo_util.newId() }
-             for i in range(n) ]
+               '_id': mongo_util.newId()}
+             for i in range(n)]
     for doc in docs:
         doc['length'] = len(doc['label'])
         doc['letters'] = sorted(list(doc['label']))
@@ -459,6 +468,7 @@ def generate_sample_data(n, host, port):
     db.drop_collection('posts')
     db.posts.insert(docs)
     return n, 'test', 'posts'
+
 
 def run_from_args():
     '''
