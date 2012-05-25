@@ -29,7 +29,7 @@ import sys
 import access
 import myLogging
 import upload
-from sanity import sanitize
+#from sanity import sanitize # disable for big words
 
 JSRE = re.compile(r'^/(.*)/([igm]*)$')
 DojoGlob = re.compile(r'[?*]')
@@ -37,7 +37,7 @@ DojoGlob = re.compile(r'[?*]')
 def TranslateQuery(obj):
     '''Hack to translate the json coded object into a mongo query'''
     # some validation might be done in here as well
-    
+
     if type(obj) == dict:
         # translate all elements of a dictionary
         for key,val in obj.iteritems():
@@ -80,7 +80,7 @@ def TranslateQuery(obj):
     else:
         # pass anything else on
         return obj
-        
+
 def RestrictQuery(query):
     restricted = {}
     for key,value in query.iteritems():
@@ -89,7 +89,7 @@ def RestrictQuery(query):
         if type(value) in [ unicode, int, float ]:
             restricted[key] = value
     return restricted
-        
+
 def doQuery(item, spec):
     '''simulate a mongo query on the collection names'''
     if not spec:
@@ -110,7 +110,7 @@ class DatabaseHandler(access.BaseHandler):
         '''Handle queries for collection names'''
         if collection_name:
             raise HTTPError(400, 'db does not exist')
-            
+
         if not self.checkAccessKey(db_name, '*', access.Read):
             raise HTTPError(403, 'listing not permitted (%s)' % self.checkAccessKeyMessage)
         db = self.mongo_conn[db_name]
@@ -146,7 +146,7 @@ class DatabaseHandler(access.BaseHandler):
             start = 0
             stop = Nitems
         result = result[start:stop+1]
-        
+
         # send the result
         self.set_header('Content-Range', 'items %d-%d/%d' % (start,stop,Nitems))
         s = json.dumps(result, default=pymongo.json_util.default)
@@ -160,7 +160,7 @@ class DatabaseHandler(access.BaseHandler):
         if not self.checkAccessKey(db_name, '*', access.Delete):
             raise HTTPError(403, 'drop collection not permitted (%s)' % self.checkAccessKeyMessage)
         self.mongo_conn[db_name].drop_collection(collection_name)
-        
+
 # handle requests without an id
 class CollectionHandler(access.BaseHandler):
     @tornado.web.asynchronous
@@ -170,7 +170,7 @@ class CollectionHandler(access.BaseHandler):
         restrict = readMode == access.RestrictedRead
         if not readMode:
             raise HTTPError(403, 'read not permitted (%s)' % self.checkAccessKeyMessage)
-        
+
         collection = self.mongo_conn[db_name][collection_name]
 
         # check for a query
@@ -206,7 +206,7 @@ class CollectionHandler(access.BaseHandler):
         else:
             start = 0
             stop = None
-            
+
         # hand off to the worker thread to do the possibly slow db access
         self.run_async(self._callback, self._worker, collection, findSpec, sortSpec, start, stop,
                        restrict)
@@ -231,11 +231,11 @@ class CollectionHandler(access.BaseHandler):
         else:
             rows = list(cursor)
         return (rows, start, stop, Nitems)
-    
+
     def _callback(self, result, *args):
         '''Report the async worker's results'''
         rows, start, stop, Nitems = result
-        
+
         # send the result
         self.set_header('Content-Range', 'items %d-%d/%d' % (start,stop,Nitems))
         s = json.dumps(rows, default=pymongo.json_util.default)
@@ -249,7 +249,7 @@ class CollectionHandler(access.BaseHandler):
         '''Create a new item and return the single item not an array'''
         if not self.checkAccessKey(db_name, collection_name, access.Create):
             raise HTTPError(403, 'create not permitted (%s)' % self.checkAccessKeyMessage)
-        
+
         collection = self.mongo_conn[db_name][collection_name]
 
         try:
@@ -261,13 +261,13 @@ class CollectionHandler(access.BaseHandler):
 
         # validate the schema
         self.validateSchema(db_name, collection_name, item)
-        
-        # sanitize
-        try:
-            sanitize(item)
-        except ValueError:
-            raise HTTPError(400, 'HTML field parse failed')
-        
+
+        # disable sanitize for bigwords, it wasn't written expecting it
+        #try:
+        #    sanitize(item)
+        #except ValueError:
+        #    raise HTTPError(400, 'HTML field parse failed')
+
         # add meta items outside schema
         id = mongo_util.newId()
         item['_id'] = id
@@ -288,9 +288,9 @@ class ItemHandler(access.BaseHandler):
         '''Handle requests for single items'''
         if not self.checkAccessKey(db_name, collection_name, access.Read):
             raise HTTPError(403, 'read not permitted (%s)' % self.checkAccessKeyMessage)
-        
+
         collection = self.mongo_conn[db_name][collection_name]
-        
+
         # restrict fields here
         item = collection.find_one(id)
         s = json.dumps(item, default=pymongo.json_util.default)
@@ -303,7 +303,7 @@ class ItemHandler(access.BaseHandler):
         '''update an item after an edit, no response?'''
         if not self.checkAccessKey(db_name, collection_name, access.Update):
             raise HTTPError(403, 'update not permitted (%s)' % self.checkAccessKeyMessage)
-        
+
         collection = self.mongo_conn[db_name][collection_name]
         try:
             s = self.request.body
@@ -314,40 +314,40 @@ class ItemHandler(access.BaseHandler):
         # remove meta items that are not in schema
         new_item.pop('_id', '')
         new_owner = new_item.pop(access.OwnerKey, '')
-        
+
         # validate schema
         self.validateSchema(db_name, collection_name, new_item)
-        
-        # sanitize it
-        try:
-            sanitize(new_item)
-        except ValueError:
-            raise HTTPError(400, 'html string parse failed')
-        
+
+        # disable sanitize for big words
+        #try:
+        #    sanitize(new_item)
+        #except ValueError:
+        #    raise HTTPError(400, 'html string parse failed')
+
         # insert meta info
         new_item['_id'] = id
-        
+
         # check old item
         old_item = collection.find_one({ '_id': id}, fields = [ access.OwnerKey ])
         if not old_item:
             raise HTTPError(403, 'update not permitted (does not exist)')
-        
+
         owner = old_item.get(access.OwnerKey, None)
-        
+
         if not owner or access.Override & self.allowedMode or owner == self.getUserId():
             new_item[access.OwnerKey] = owner
-            
+
         else:
             raise HTTPError(403, 'update not permitted (not owner)')
-                
-            
+
+
         collection.update({ '_id': id }, new_item, upsert=False, safe=True)
 
     def delete(self, mode, db_name, collection_name, id):
         '''Delete an item, what should I return?'''
         if not self.checkAccessKey(db_name, collection_name, access.Delete):
             raise HTTPError(403, 'delete item not permitted (%s)' % self.checkAccessKeyMessage)
-        
+
         collection = self.mongo_conn[db_name][collection_name]
         if not access.Override & self.allowedMode:
             old_item = collection.find_one({ '_id': id }, fields = [ access.OwnerKey] )
@@ -365,26 +365,26 @@ class TestHandler(access.BaseHandler):
             db = self.mongo_conn['test']
             db.drop_collection('test')
             collection = db['test']
-            
+
             for value,word in enumerate(['foo', 'bar', 'fee', 'baa', 'baa', 'bar']):
                 collection.insert({
-                    'word': word, 
-                    'value': value, 
+                    'word': word,
+                    'value': value,
                     '_id': mongo_util.newId(),
                     access.OwnerKey: self.getUserId() }, safe=True)
-                    
+
             collection.insert({
                 'word': 'another',
                 'value': 42,
                 '_id': mongo_util.newId(),
                 access.OwnerKey: 'some.one@else' }, safe=True)
-                
+
             self.write('ok')
-            
+
         elif re.match(r'\d+', flag):
             code = int(flag)
             raise HTTPError(code)
-            
+
 class WarningHandler(access.BaseHandler):
     def post(self):
         msg = self.request.body
@@ -393,8 +393,8 @@ class WarningHandler(access.BaseHandler):
         self.set_header('Content-Length', len(s))
         self.set_header('Content-Type', 'text/plain')
         self.write(s)
-        
-        
+
+
 def generate_secret(seed):
     '''Generate the secret string for hmac'''
     try:
@@ -405,7 +405,7 @@ def generate_secret(seed):
         return ''.join(random.choice(string.letters + string.digits + string.punctuation)
                        for i in range(100))
 
-def run(port=8888, threads=4, debug=False, static=False, pid=None, 
+def run(port=8888, threads=4, debug=False, static=False, pid=None,
         mongo_host='127.0.0.1', mongo_port=27017, seed=0):
     if pid is not None:
         # launch as a daemon and write the pid file
@@ -422,7 +422,7 @@ def run(port=8888, threads=4, debug=False, static=False, pid=None,
             time.sleep(t)
     else:
         raise pymongo.errors.AutoReconnect
-            
+
     kwargs = {
         'cookie_secret': generate_secret(seed),
         'debug': debug,
@@ -443,7 +443,7 @@ def run(port=8888, threads=4, debug=False, static=False, pid=None,
     http_server = tornado.httpserver.HTTPServer(application)
     http_server.listen(port)
     tornado.ioloop.IOLoop.instance().start()
-    
+
 def generate_sample_data(n, host, port):
     import string, random
     docs = [ { 'label' : ''.join(random.sample(string.lowercase, random.randint(2,9))),
@@ -453,7 +453,7 @@ def generate_sample_data(n, host, port):
     for doc in docs:
         doc['length'] = len(doc['label'])
         doc['letters'] = sorted(list(doc['label']))
-        
+
     connection = pymongo.Connection(host, port)
     db = connection.test
     db.drop_collection('posts')
@@ -475,15 +475,15 @@ def run_from_args():
     parser.add_option("-w", "--workers", dest="workers", default=4,
         help="size of the worker pool (default=4)", type="int")
     parser.add_option("-g", "--generate", dest="generate", default=0,
-        help="generate N random items in a db collection for testing (default=0)", 
+        help="generate N random items in a db collection for testing (default=0)",
         type="int")
     parser.add_option("--logId", dest="logId", default='', type="str",
         help="identity in syslog (default log to stderr)")
     parser.add_option("--logLevel", dest="logLevel", default="warning", type="str",
         help="logging level (info|debug|warning|error)")
-    parser.add_option("--debug", dest="debug", action="store_true", 
+    parser.add_option("--debug", dest="debug", action="store_true",
         default=False, help="enable Tornado debug mode w/ automatic loading (default=false)")
-    parser.add_option("--static", dest="static", action="store_true", 
+    parser.add_option("--static", dest="static", action="store_true",
         default=False, help="enable Tornado sharing of the jsonic root folder (default=false)")
     parser.add_option("--pid", dest="pid", default=None, type="str",
         help="launch as a daemon and write to the given pid file (default=None)")
@@ -491,10 +491,10 @@ def run_from_args():
         help="seed for the random number generator")
     (options, args) = parser.parse_args()
     if options.generate:
-        generate_sample_data(options.generate, options.mongohost, 
+        generate_sample_data(options.generate, options.mongohost,
             options.mongoport)
         #print 'Generated %d random items in db: %s, collection: %s' % vals
-        
+
     # initialize logging
     if options.logId:
         id = '%s:%d' % (options.logId, os.getpid())
@@ -502,7 +502,7 @@ def run_from_args():
     logging.warning('startup')
 
     # run the server
-    run(options.port, options.workers, options.debug, options.static, 
+    run(options.port, options.workers, options.debug, options.static,
         options.pid, options.mongohost, options.mongoport, options.seed)
 
 if __name__ == "__main__":
