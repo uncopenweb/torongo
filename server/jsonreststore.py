@@ -28,7 +28,7 @@ import time
 import access
 import myLogging
 import upload
-#from sanity import sanitize # disable for big words
+from sanity import sanitize
 
 JSRE = re.compile(r'^/(.*)/([igm]*)$')
 DojoGlob = re.compile(r'[?*]')
@@ -266,11 +266,10 @@ class CollectionHandler(access.BaseHandler):
         # validate the schema
         self.validateSchema(db_name, collection_name, item)
 
-        # disable sanitize for bigwords, it wasn't written expecting it
-        #try:
-        #    sanitize(item)
-        #except ValueError:
-        #    raise HTTPError(400, 'HTML field parse failed')
+        try:
+            sanitize(item)
+        except ValueError:
+            raise HTTPError(400, 'HTML field parse failed')
 
         # add meta items outside schema
         id = mongo_util.newId()
@@ -323,11 +322,10 @@ class ItemHandler(access.BaseHandler):
         # validate schema
         self.validateSchema(db_name, collection_name, new_item)
 
-        # disable sanitize for big words
-        #try:
-        #    sanitize(new_item)
-        #except ValueError:
-        #    raise HTTPError(400, 'html string parse failed')
+        try:
+            sanitize(new_item)
+        except ValueError:
+            raise HTTPError(400, 'html string parse failed')
 
         # insert meta info
         new_item['_id'] = id
