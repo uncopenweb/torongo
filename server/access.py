@@ -7,7 +7,7 @@ import tornado.web
 from tornado.web import HTTPError
 import tornado.auth
 import pymongo
-import pymongo.json_util
+import bson.json_util
 import mongo_util
 import json
 import socket
@@ -252,7 +252,7 @@ class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
         if not id:
             # start auth from Google
             if self.get_argument("openid.mode", None):
-                self.get_authenticated_user(self.async_callback(self._on_auth))
+                self.get_authenticated_user(self._on_auth)
                 return
             self.authenticate_redirect()
         elif id == '-start':
@@ -296,7 +296,7 @@ class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
 
     def post(self, id):
         '''Open a db/collection with requested permissions'''
-        args = json.loads(self.request.body, object_hook=pymongo.json_util.object_hook)
+        args = json.loads(self.request.body, object_hook=bson.json_util.object_hook)
         db = args['database']
         collection = args['collection']
         mode = args['mode']

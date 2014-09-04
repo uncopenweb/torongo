@@ -9,7 +9,7 @@ import tornado.ioloop
 import tornado.web
 from tornado.web import HTTPError
 import pymongo
-import pymongo.json_util
+import bson.json_util
 try:
     import pymongo.objectid
 except ImportError:
@@ -27,7 +27,6 @@ import time
 
 import access
 import myLogging
-import upload
 #from sanity import sanitize # disable for big words
 
 JSRE = re.compile(r'^/(.*)/([igm]*)$')
@@ -152,7 +151,7 @@ class DatabaseHandler(access.BaseHandler):
 
         # send the result
         self.set_header('Content-Range', 'items %d-%d/%d' % (start, stop, Nitems))
-        s = json.dumps(result, default=pymongo.json_util.default)
+        s = json.dumps(result, default=bson.json_util.default)
         s = s.replace('"_ref":', '"$ref":')  # restore $ref
         self.set_header('Content-Length', len(s))
         self.set_header('Content-Type', 'text/javascript')
@@ -242,7 +241,7 @@ class CollectionHandler(access.BaseHandler):
 
         # send the result
         self.set_header('Content-Range', 'items %d-%d/%d' % (start, stop, Nitems))
-        s = json.dumps(rows, default=pymongo.json_util.default)
+        s = json.dumps(rows, default=bson.json_util.default)
         s = s.replace('"_ref":', '"$ref":')  # restore $ref
         self.set_header('Content-Length', len(s))
         self.set_header('Content-Type', 'text/javascript')
@@ -259,7 +258,7 @@ class CollectionHandler(access.BaseHandler):
         try:
             s = self.request.body
             s = s.replace('"$ref":', '"_ref":')  # hide $ref
-            item = json.loads(s, object_hook=pymongo.json_util.object_hook)
+            item = json.loads(s, object_hook=bson.json_util.object_hook)
         except ValueError, e:
             raise HTTPError(400, unicode(e))
 
@@ -280,7 +279,7 @@ class CollectionHandler(access.BaseHandler):
         collection.insert(item, safe=True)
         # this path should get encoded only one place, fix this
         self.set_header('Location', '/data/%s-%s/%s/%s' % (mode, db_name, collection_name, id))
-        s = json.dumps(item, default=pymongo.json_util.default)
+        s = json.dumps(item, default=bson.json_util.default)
         s = s.replace('"_ref":', '"$ref":')  # restore $ref
         self.set_header('Content-Length', len(s))
         self.set_header('Content-Type', 'text/javascript')
@@ -298,7 +297,7 @@ class ItemHandler(access.BaseHandler):
 
         # restrict fields here
         item = collection.find_one(id)
-        s = json.dumps(item, default=pymongo.json_util.default)
+        s = json.dumps(item, default=bson.json_util.default)
         s = s.replace('"_ref":', '"$ref":')  # restore $ref
         self.set_header('Content-Length', len(s))
         self.set_header('Content-Type', 'text/javascript')
@@ -313,7 +312,7 @@ class ItemHandler(access.BaseHandler):
         try:
             s = self.request.body
             s = s.replace('"$ref":', '"_ref":')  # restore $ref
-            new_item = json.loads(s, object_hook=pymongo.json_util.object_hook)
+            new_item = json.loads(s, object_hook=bson.json_util.object_hook)
         except ValueError, e:
             raise HTTPError(400, unicode(e))
         # remove meta items that are not in schema
@@ -442,7 +441,7 @@ def run(port=8888, threads=4, debug=False, static=False, pid=None,
         (r"/data/([a-zA-Z]*)-([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)?$", DatabaseHandler),
         (r"/data/([a-zA-Z]*)-([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/$", CollectionHandler),
         (r"/data/([a-zA-Z]*)-([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/([a-f0-9]+)", ItemHandler),
-        (r"/data/_upload/$", upload.UploadHandler),
+        #(r"/data/_upload/$", upload.UploadHandler),
         (r"/data/_auth(.*)$", access.AuthHandler),
         (r"/data/_test_(reset|\d+)$", TestHandler),
         (r"/data/_warning$", WarningHandler),
