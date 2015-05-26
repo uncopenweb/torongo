@@ -429,11 +429,17 @@ def run(port=8888, threads=4, debug=False, static=False, pid=None,
     else:
         raise pymongo.errors.AutoReconnect
 
+    google_secrets = {
+        "key": os.environ['GOOGLE_OAUTH_KEY'],
+        "secret": os.environ['GOOGLE_OAUTH_SECRET']
+    }
+
     kwargs = {
         'cookie_secret': generate_secret(seed),
         'debug': debug,
         'thread_count': threads,
-        'mongo_conn': conn
+        'mongo_conn': conn,
+        'google_oauth': google_secrets
     }
     if static:
         kwargs['static_path'] = os.path.join(os.path.dirname(__file__), "../")
