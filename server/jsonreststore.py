@@ -27,7 +27,6 @@ import time
 
 import access
 import myLogging
-import upload
 from sanity import sanitize
 
 JSRE = re.compile(r'^/(.*)/([igm]*)$')
@@ -449,7 +448,6 @@ def run(port=8888, threads=4, debug=False, static=False, pid=None,
         (r"/data/([a-zA-Z]*)-([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)?$", DatabaseHandler),
         (r"/data/([a-zA-Z]*)-([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/$", CollectionHandler),
         (r"/data/([a-zA-Z]*)-([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/([a-f0-9]+)", ItemHandler),
-        #(r"/data/_upload/$", upload.UploadHandler),
         (r"/data/_auth(.*)$", access.AuthHandler),
         (r"/data/_test_(reset|\d+)$", TestHandler),
         (r"/data/_warning$", WarningHandler),
