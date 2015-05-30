@@ -1,14 +1,10 @@
 [ 
   { "user": "gary.bishop.unc@gmail.com",
     "role": "developer" },
-  { "user": "duncan.lewis11@gmail.com",
+  { "user": "gb@cs.unc.edu",
     "role": "developer" },
   { "user": "parente@gmail.com",
     "role": "developer" },
-  { "user": "overman.robert@gmail.com",
-    "role": "developer" },
-  { "user": "pbouchon90@gmail.com",
-    "role": "developer" },
-  { "user": "beccacrabb@gmail.com",
+  { "user": "kalina.wong@gmail.com",
     "role": "developer" }
 ]

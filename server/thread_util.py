@@ -249,5 +249,4 @@ class ThreadedRequestHandler(tornado.web.RequestHandler):
         :param args:
         :param kwargs:
         '''
-        cb = self.async_callback(callback)
-        self.application.thread_pool(cb, worker, *args, **kwargs)
+        self.application.thread_pool(callback, worker, *args, **kwargs)

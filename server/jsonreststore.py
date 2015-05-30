@@ -9,7 +9,7 @@ import tornado.ioloop
 import tornado.web
 from tornado.web import HTTPError
 import pymongo
-import pymongo.json_util
+import bson.json_util
 try:
     import pymongo.objectid
 except ImportError:
@@ -32,6 +32,7 @@ from sanity import sanitize
 
 JSRE = re.compile(r'^/(.*)/([igm]*)$')
 DojoGlob = re.compile(r'[?*]')
+CheckSanity = True
 
 
 def TranslateQuery(obj):
@@ -152,7 +153,7 @@ class DatabaseHandler(access.BaseHandler):
 
         # send the result
         self.set_header('Content-Range', 'items %d-%d/%d' % (start, stop, Nitems))
-        s = json.dumps(result, default=pymongo.json_util.default)
+        s = json.dumps(result, default=bson.json_util.default)
         s = s.replace('"_ref":', '"$ref":')  # restore $ref
         self.set_header('Content-Length', len(s))
         self.set_header('Content-Type', 'text/javascript')
@@ -242,7 +243,7 @@ class CollectionHandler(access.BaseHandler):
 
         # send the result
         self.set_header('Content-Range', 'items %d-%d/%d' % (start, stop, Nitems))
-        s = json.dumps(rows, default=pymongo.json_util.default)
+        s = json.dumps(rows, default=bson.json_util.default)
         s = s.replace('"_ref":', '"$ref":')  # restore $ref
         self.set_header('Content-Length', len(s))
         self.set_header('Content-Type', 'text/javascript')
@@ -259,17 +260,18 @@ class CollectionHandler(access.BaseHandler):
         try:
             s = self.request.body
             s = s.replace('"$ref":', '"_ref":')  # hide $ref
-            item = json.loads(s, object_hook=pymongo.json_util.object_hook)
+            item = json.loads(s, object_hook=bson.json_util.object_hook)
         except ValueError, e:
             raise HTTPError(400, unicode(e))
 
         # validate the schema
         self.validateSchema(db_name, collection_name, item)
 
-        try:
-            sanitize(item)
-        except ValueError:
-            raise HTTPError(400, 'HTML field parse failed')
+        if CheckSanity:
+            try:
+                sanitize(item)
+            except ValueError:
+                raise HTTPError(400, 'HTML field parse failed')
 
         # add meta items outside schema
         id = mongo_util.newId()
@@ -279,7 +281,7 @@ class CollectionHandler(access.BaseHandler):
         collection.insert(item, safe=True)
         # this path should get encoded only one place, fix this
         self.set_header('Location', '/data/%s-%s/%s/%s' % (mode, db_name, collection_name, id))
-        s = json.dumps(item, default=pymongo.json_util.default)
+        s = json.dumps(item, default=bson.json_util.default)
         s = s.replace('"_ref":', '"$ref":')  # restore $ref
         self.set_header('Content-Length', len(s))
         self.set_header('Content-Type', 'text/javascript')
@@ -297,7 +299,7 @@ class ItemHandler(access.BaseHandler):
 
         # restrict fields here
         item = collection.find_one(id)
-        s = json.dumps(item, default=pymongo.json_util.default)
+        s = json.dumps(item, default=bson.json_util.default)
         s = s.replace('"_ref":', '"$ref":')  # restore $ref
         self.set_header('Content-Length', len(s))
         self.set_header('Content-Type', 'text/javascript')
@@ -312,7 +314,7 @@ class ItemHandler(access.BaseHandler):
         try:
             s = self.request.body
             s = s.replace('"$ref":', '"_ref":')  # restore $ref
-            new_item = json.loads(s, object_hook=pymongo.json_util.object_hook)
+            new_item = json.loads(s, object_hook=bson.json_util.object_hook)
         except ValueError, e:
             raise HTTPError(400, unicode(e))
         # remove meta items that are not in schema
@@ -322,10 +324,11 @@ class ItemHandler(access.BaseHandler):
         # validate schema
         self.validateSchema(db_name, collection_name, new_item)
 
-        try:
-            sanitize(new_item)
-        except ValueError:
-            raise HTTPError(400, 'html string parse failed')
+        if CheckSanity:
+            try:
+                sanitize(new_item)
+            except ValueError:
+                raise HTTPError(400, 'html string parse failed')
 
         # insert meta info
         new_item['_id'] = id
@@ -428,11 +431,17 @@ def run(port=8888, threads=4, debug=False, static=False, pid=None,
     else:
         raise pymongo.errors.AutoReconnect
 
+    google_secrets = {
+        "key": os.environ['GOOGLE_OAUTH_KEY'],
+        "secret": os.environ['GOOGLE_OAUTH_SECRET']
+    }
+
     kwargs = {
         'cookie_secret': generate_secret(seed),
         'debug': debug,
         'thread_count': threads,
-        'mongo_conn': conn
+        'mongo_conn': conn,
+        'google_oauth': google_secrets
     }
     if static:
         kwargs['static_path'] = os.path.join(os.path.dirname(__file__), "../")
@@ -440,7 +449,7 @@ def run(port=8888, threads=4, debug=False, static=False, pid=None,
         (r"/data/([a-zA-Z]*)-([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)?$", DatabaseHandler),
         (r"/data/([a-zA-Z]*)-([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/$", CollectionHandler),
         (r"/data/([a-zA-Z]*)-([a-zA-Z][a-zA-Z0-9]*)/([a-zA-Z][a-zA-Z0-9]*)/([a-f0-9]+)", ItemHandler),
-        (r"/data/_upload/$", upload.UploadHandler),
+        #(r"/data/_upload/$", upload.UploadHandler),
         (r"/data/_auth(.*)$", access.AuthHandler),
         (r"/data/_test_(reset|\d+)$", TestHandler),
         (r"/data/_warning$", WarningHandler),
@@ -497,6 +506,8 @@ def run_from_args():
         help="launch as a daemon and write to the given pid file (default=None)")
     parser.add_option("--seed", dest="seed", default=0, type="int",
         help="seed for the random number generator")
+    parser.add_option("--noSanity", dest="noSanity", action="store_true",
+        default=False, help="disable sanity checking for BigWords")
     (options, args) = parser.parse_args()
     if options.generate:
         generate_sample_data(options.generate, options.mongohost,
@@ -508,6 +519,10 @@ def run_from_args():
         id = '%s:%d' % (options.logId, os.getpid())
         myLogging.init(id, options.logLevel)
     logging.warning('startup')
+
+    if options.noSanity:
+        global CheckSanity
+        CheckSanity = False
 
     # run the server
     run(options.port, options.workers, options.debug, options.static,

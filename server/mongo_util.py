@@ -6,7 +6,8 @@ Utilities for using pymongo and its thread pool in web request handlers.
 '''
 from thread_util import ThreadPoolApplication, ThreadedRequestHandler
 import pymongo
-import pymongo.json_util
+import bson.json_util
+import bson.objectid
 import json
 
 class MongoApplication(ThreadPoolApplication):
@@ -44,12 +45,11 @@ class MongoRequestHandler(ThreadedRequestHandler):
         :param args:
         :param kwargs:
         '''
-        cb = self.async_callback(callback)
         def _worker(*args, **kwargs):
             result = worker(*args, **kwargs)
             self.mongo_conn.end_request()
             return result
-        self.application.thread_pool(cb, _worker, *args, **kwargs)
+        self.application.thread_pool(callback, _worker, *args, **kwargs)
 
     def to_json(self, obj):
         '''
@@ -58,7 +58,7 @@ class MongoRequestHandler(ThreadedRequestHandler):
         :param obj:
         :rtype: str
         '''
-        return json.dumps(obj, default=pymongo.json_util.default)
+        return json.dumps(obj, default=bson.json_util.default)
     
     def from_json(self, text):
         '''
@@ -67,11 +67,11 @@ class MongoRequestHandler(ThreadedRequestHandler):
         :param text:
         :rtype: object
         '''
-        return json.loads(text, object_hook=pymongo.json_util.object_hook)
+        return json.loads(text, object_hook=bson.json_util.object_hook)
 
 def newId():
     '''Use the mongo ID mechanism but convert them to strings'''
     # Not sure why I prefer the strings, they sure look better than the objects
-    return str(pymongo.objectid.ObjectId())
+    return str(bson.objectid.ObjectId())
 
 

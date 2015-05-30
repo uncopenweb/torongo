@@ -7,7 +7,7 @@ import tornado.web
 from tornado.web import HTTPError
 import tornado.auth
 import pymongo
-import pymongo.json_util
+import bson.json_util
 import mongo_util
 import json
 import socket
@@ -140,7 +140,6 @@ class BaseHandler(mongo_util.MongoRequestHandler):
         perms = AccessModes.find_one( { 'role': role,
                                         'database': dbName,
                                         'collection': collection } )
-        print >>sys.stderr, role, dbName, collection, perms
         if dbName == 'admin':
             permission = ''
 
@@ -244,17 +243,41 @@ class BaseHandler(mongo_util.MongoRequestHandler):
 #            "message": message,
 #        }
 
-
-class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
-    '''Handle authentication using Google OpenID'''
-    @tornado.web.asynchronous
+class AuthHandler(BaseHandler, tornado.auth.GoogleOAuth2Mixin):
+    @tornado.gen.coroutine
     def get(self, id):
-        if not id:
-            # start auth from Google
-            if self.get_argument("openid.mode", None):
-                self.get_authenticated_user(self.async_callback(self._on_auth))
-                return
-            self.authenticate_redirect()
+        if self.get_argument('code', False):
+            user = yield self.get_authenticated_user(
+                redirect_uri='http://bigwords2.cs.unc.edu/data/_auth-ok',
+                code=self.get_argument('code'))
+            access_token = str(user['access_token'])
+            http_client = self.get_auth_http_client()
+            response =  yield http_client.fetch('https://www.googleapis.com/oauth2/v1/userinfo?access_token='+access_token)
+            if not response:
+                self.clear_all_cookies()
+                raise tornado.web.HTTPError(500, 'Google authentication failed')
+            user = json.loads(response.body)
+
+            self.set_secure_cookie("user", tornado.escape.json_encode(user))
+            # Save the user with e.g. set_secure_cookie
+            resp = '''
+<html>
+  <head>
+  </head>
+  <body onload="window.opener.uow._handleOpenIDResponse('%s');window.close();">
+    This page is after login is complete.
+  </body>
+</html>'''
+            resp = resp % id[1:]
+            self.write(resp)
+            self.finish()
+
+        elif id == '/user':
+            user = self.get_current_user()
+            user['role'] = self.getRole()
+            self.write(user)
+            self.finish()
+
         elif id == '-start':
             resp = '''
 <html>
@@ -267,13 +290,8 @@ class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
 '''
             self.write(resp)
             self.finish()
-        elif id == '/user':
-            user = self.get_current_user()
-            user['role'] = self.getRole()
-            self.write(user)
-            self.finish()
 
-        else:
+        elif id == '-ok' or id == '-failed':
             # wrap up the authorization
             resp = '''
 <html>
@@ -287,16 +305,17 @@ class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
             self.write(resp)
             self.finish()
 
-    def _on_auth(self, user):
-        if user and 'email' in user and '@' in user['email']:
-            self.set_secure_cookie("user", tornado.escape.json_encode(user))
-            self.redirect("/data/_auth-ok")
         else:
-            self.redirect("/data/_auth-failed")
+            yield self.authorize_redirect(
+                redirect_uri='http://bigwords2.cs.unc.edu/data/_auth-ok',
+                client_id=self.settings['google_oauth']['key'],
+                scope=['openid', 'email'],
+                response_type='code',
+                extra_params={'approval_prompt': 'auto'})
 
     def post(self, id):
         '''Open a db/collection with requested permissions'''
-        args = json.loads(self.request.body, object_hook=pymongo.json_util.object_hook)
+        args = json.loads(self.request.body, object_hook=bson.json_util.object_hook)
         db = args['database']
         collection = args['collection']
         mode = args['mode']
