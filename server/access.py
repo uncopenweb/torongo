@@ -248,7 +248,7 @@ class AuthHandler(BaseHandler, tornado.auth.GoogleOAuth2Mixin):
     def get(self, id):
         if self.get_argument('code', False):
             user = yield self.get_authenticated_user(
-                redirect_uri='http://bigwords2.cs.unc.edu/data/_auth-ok',
+                redirect_uri=user['redirect'],
                 code=self.get_argument('code'))
             access_token = str(user['access_token'])
             http_client = self.get_auth_http_client()

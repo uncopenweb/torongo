@@ -432,7 +432,8 @@ def run(port=8888, threads=4, debug=False, static=False, pid=None,
 
     google_secrets = {
         "key": os.environ['GOOGLE_OAUTH_KEY'],
-        "secret": os.environ['GOOGLE_OAUTH_SECRET']
+        "secret": os.environ['GOOGLE_OAUTH_SECRET'],
+        "redirect": os.environ['GOOGLE_OAUTH_REDIRECT']
     }
 
     kwargs = {
