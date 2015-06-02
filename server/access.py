@@ -307,7 +307,7 @@ class AuthHandler(BaseHandler, tornado.auth.GoogleOAuth2Mixin):
 
         else:
             yield self.authorize_redirect(
-                redirect_uri='http://bigwords2.cs.unc.edu/data/_auth-ok',
+                redirect_uri=user['redirect'],
                 client_id=self.settings['google_oauth']['key'],
                 scope=['openid', 'email'],
                 response_type='code',
